@@ -1,4 +1,5 @@
 import { promises as fs } from 'fs';
+import { createReadStream } from 'fs';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -32,7 +33,7 @@ export class FileService {
         folderPath = this.uploadDir;
         console.log(`[FileService] Listando raíz: "${folderPath}"`);
       }
-      
+
       await this.ensureDir(folderPath);
 
       const items = await fs.readdir(folderPath, { withFileTypes: true });
@@ -206,11 +207,11 @@ export class FileService {
     try {
       const normalizedFrom = this.normalizePath(fromFolder);
       const normalizedTo = this.normalizePath(toFolder);
-      
+
       const fromPath = normalizedFrom
         ? path.join(this.uploadDir, normalizedFrom, fileName)
         : path.join(this.uploadDir, fileName);
-      
+
       const toPath = normalizedTo
         ? path.join(this.uploadDir, normalizedTo, fileName)
         : path.join(this.uploadDir, fileName);
@@ -242,5 +243,81 @@ export class FileService {
     // No permitir caracteres especiales peligrosos y que no sea un path
     const invalidChars = /[<>:"|?*\x00-\x1f/\\]/g;
     return !invalidChars.test(name) && name.length > 0 && name !== '.' && name !== '..';
+  }
+
+  /**
+   * Obtener estadísticas del archivo
+   * @param {string} filePath - Ruta relativa del archivo
+   * @returns {Promise<{size: number, mtimeMs: number}>}
+   */
+  async getFileStats(filePath) {
+    try {
+      const normalizedPath = this.normalizePath(filePath);
+      const fullPath = path.join(this.uploadDir, normalizedPath);
+      const stats = await fs.stat(fullPath);
+      return {
+        size: stats.size,
+        mtimeMs: stats.mtimeMs,
+      };
+    } catch (error) {
+      console.error('Error getting file stats:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Crear stream de lectura con rango específico
+   * @param {string} fullPath - Ruta absoluta del archivo
+   * @param {number} start - Byte de inicio (inclusive)
+   * @param {number} end - Byte de fin (inclusive)
+   * @returns {fs.ReadStream}
+   */
+  createFileStream(fullPath, start = 0, end = null) {
+    return createReadStream(fullPath, {
+      start,
+      end: end !== null ? end : undefined,
+      highWaterMark: 65536, // 64KB chunks para mejor performance
+    });
+  }
+
+  /**
+   * Warm-up del archivo: lee los primeros BURST_SIZE bytes para calentar Page Cache
+   * @param {string} filePath - Ruta relativa del archivo
+   * @param {number} burstSize - Bytes a leer (default: 5MB)
+   * @returns {Promise<boolean>}
+   */
+  async warmupFile(filePath, burstSize = 5 * 1024 * 1024) {
+    try {
+      const normalizedPath = this.normalizePath(filePath);
+      const fullPath = path.join(this.uploadDir, normalizedPath);
+
+      // Obtener tamaño del archivo
+      const stats = await fs.stat(fullPath);
+      const fileSize = stats.size;
+
+      // Leer los primeros burstSize bytes en bloques para calentar Page Cache
+      const chunkSize = Math.min(burstSize, 1024 * 1024); // 1MB chunks
+      let bytesRead = 0;
+
+      const fileHandle = await fs.open(fullPath, 'r');
+
+      try {
+        while (bytesRead < Math.min(burstSize, fileSize)) {
+          const toRead = Math.min(chunkSize, fileSize - bytesRead);
+          const buffer = Buffer.alloc(toRead);
+
+          await fileHandle.read(buffer, 0, toRead, bytesRead);
+          bytesRead += toRead;
+        }
+      } finally {
+        await fileHandle.close();
+      }
+
+      console.log(`[FileService] Warmup completado: ${filePath} (${(bytesRead / 1024 / 1024).toFixed(2)}MB en Page Cache)`);
+      return true;
+    } catch (error) {
+      console.error('Error warming up file:', error);
+      return false;
+    }
   }
 }

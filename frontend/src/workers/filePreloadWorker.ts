@@ -1,14 +1,18 @@
 /**
- * File Preload Worker
+ * File Preload Worker - Optimized Version
  * 
- * Precarga archivos de audio en background sin afectar la reproducción actual.
- * Utiliza API Backend + Redis para caché distribuido de archivos pesados.
+ * Estrategia "Burst Preload" (Thin Architecture):
+ * - Archivos <50MB: precarga completa en Redis
+ * - Archivos >50MB: carga solo 5MB inicial + metadatos, streaming desde NVMe
+ * - Elimina Base64 completamente
+ * - Usa Range Requests para eficiencia
  */
 
 interface PreloadSession {
   fileName: string;
   filePath: string;
   streamUrl: string;
+  fileSize: number;
   status: 'pending' | 'loading' | 'ready' | 'error';
   error?: string;
   abortController?: AbortController;
@@ -23,6 +27,8 @@ interface FileInfoPayload {
 // Configuración
 const PRELOAD_API_BASE = '/api/preload';
 const UPLOAD_API_BASE = '/api/files';
+const BURST_SIZE_BYTES = 5 * 1024 * 1024; // 5MB para burst preload
+const SMALL_FILE_THRESHOLD_MB = 50; // Archivos < 50MB: precarga completa
 
 // Estado del worker
 let currentPreload: PreloadSession | null = null;
@@ -30,36 +36,23 @@ let currentPreload: PreloadSession | null = null;
 // Construir URL del stream
 const buildStreamUrl = (file: FileInfoPayload): string => {
   const fileName = encodeURIComponent(file.name);
-  
-  // Extraer folder de file.path (similar a audioWorker)
-  // file.path = "folder/archivo.flac" o "folder\archivo.flac"
+
   let folderParam = '';
   if (file.path && (file.path.includes('\\') || file.path.includes('/'))) {
     const separator = file.path.includes('\\') ? '\\' : '/';
     const parts = file.path.split(separator);
     if (parts.length > 1) {
-      // Remover el último elemento (nombre del archivo)
       folderParam = parts.slice(0, -1).join(separator);
     }
   }
 
-  const folderQuery = folderParam ? `&folder=${encodeURIComponent(folderParam)}` : '';
-  return `${UPLOAD_API_BASE}/${fileName}/stream?${folderQuery}`;
+  const folderQuery = folderParam ? `folder=${encodeURIComponent(folderParam)}` : '';
+  return `${UPLOAD_API_BASE}/${fileName}/stream${folderQuery ? '?' + folderQuery : ''}`;
 };
 
 // Crear clave de caché
 const getCacheKey = (file: FileInfoPayload): string => {
   return `${file.path}/${file.name}`;
-};
-
-// Convertir ArrayBuffer a base64
-const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
-  let binary = '';
-  const bytes = new Uint8Array(buffer);
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
 };
 
 // Manejar comandos desde el hilo principal
@@ -89,7 +82,10 @@ self.addEventListener('message', async (event: MessageEvent) => {
 });
 
 /**
- * Precargar un archivo a Redis
+ * Precargar un archivo usando estrategia "Burst Preload"
+ * 
+ * Archivos <50MB: Precarga completa en Redis
+ * Archivos >=50MB: Descarga 5MB inicial + metadatos, streaming desde NVMe con Range Requests
  */
 async function handlePreloadFile(file: FileInfoPayload) {
   try {
@@ -106,7 +102,7 @@ async function handlePreloadFile(file: FileInfoPayload) {
       const existsData = await existsResponse.json();
 
       if (existsData.exists) {
-        console.log(`[filePreloadWorker] ${file.name} ya está en Redis`);
+        console.log(`[filePreloadWorker] ✓ ${file.name} ya está en caché`);
         self.postMessage({
           type: 'PRELOAD_READY',
           payload: {
@@ -119,26 +115,12 @@ async function handlePreloadFile(file: FileInfoPayload) {
       }
     } catch (error) {
       console.warn('[filePreloadWorker] No se pudo verificar caché:', error);
-      // Continuar con la precarga aunque falle la verificación
     }
 
-    // Iniciar precarga
+    // Obtener tamaño del archivo con HEAD request
     const streamUrl = buildStreamUrl(file);
-    currentPreload = {
-      fileName: file.name,
-      filePath: file.path,
-      streamUrl,
-      status: 'loading',
-      abortController: new AbortController(),
-      progress: 0,
-    };
-
-    console.log(`[filePreloadWorker] Precargando: ${file.name}`);
-
-    // Hacer HEAD request para obtener el tamaño sin descargar
     const headResponse = await fetch(streamUrl, {
       method: 'HEAD',
-      signal: currentPreload.abortController!.signal,
     }).catch(() => null);
 
     let fileSizeBytes = 0;
@@ -148,133 +130,30 @@ async function handlePreloadFile(file: FileInfoPayload) {
 
     const fileSizeMB = fileSizeBytes / 1024 / 1024;
 
-    // Saltar precarga para archivos > 50MB (ahorra memoria)
-    if (fileSizeMB > 50) {
-      console.log(`[filePreloadWorker] Archivo muy grande (${fileSizeMB.toFixed(2)}MB) - saltando precarga para no congestionar memoria`);
-      self.postMessage({
-        type: 'PRELOAD_SKIPPED',
-        payload: {
-          file,
-          reason: 'archivo_muy_grande',
-          sizeMB: fileSizeMB,
-        },
-      });
+    currentPreload = {
+      fileName: file.name,
+      filePath: file.path,
+      streamUrl,
+      fileSize: fileSizeBytes,
+      status: 'loading',
+      abortController: new AbortController(),
+      progress: 0,
+    };
+
+    console.log(`[filePreloadWorker] Iniciando precarga: ${file.name} (${fileSizeMB.toFixed(2)}MB)`);
+
+    // =========================================
+    // ESTRATEGIA: Archivos <50MB = Precarga Completa
+    // =========================================
+    if (fileSizeMB < SMALL_FILE_THRESHOLD_MB) {
+      await preloadSmallFile(file, cacheKey, streamUrl, fileSizeBytes, fileSizeMB);
       return;
     }
 
-    // Intentar descargar el archivo
-    const response = await fetch(streamUrl, {
-      signal: currentPreload.abortController!.signal,
-    });
-
-    if (!response.ok) {
-      throw new Error(`Error HTTP: ${response.status}`);
-    }
-
-    // Leer el buffer
-    const buffer = await response.arrayBuffer();
-
-    // Verificar si fue cancelado mientras se descargaba
-    if (currentPreload.abortController?.signal.aborted) {
-      console.log(`[filePreloadWorker] Precarga cancelada: ${file.name}`);
-      return;
-    }
-
-    const bufferSize = buffer.byteLength;
-    const sizeMB = bufferSize / 1024 / 1024;
-
-    // Guardar en Redis usando la estrategia apropiada
-    try {
-      // Para archivos >50MB, usar endpoint binario (sin base64)
-      if (sizeMB > 50) {
-        console.log(`[filePreloadWorker] Archivo grande (${sizeMB.toFixed(2)} MB), usando streaming binario...`);
-        
-        const saveBinaryResponse = await fetch(`${PRELOAD_API_BASE}/cache/binary?cacheKey=${encodeURIComponent(cacheKey)}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/octet-stream',
-          },
-          body: buffer, // Enviar buffer directo, sin base64
-        });
-
-        if (!saveBinaryResponse.ok) {
-          const errorData = await saveBinaryResponse.json();
-          throw new Error(errorData.error || `Error HTTP: ${saveBinaryResponse.status}`);
-        }
-
-        const saveData = await saveBinaryResponse.json();
-        currentPreload.status = 'ready';
-
-        console.log(
-          `[filePreloadWorker] Precarga lista (binario): ${file.name} (${sizeMB.toFixed(2)} MB en Redis)`
-        );
-
-        self.postMessage({
-          type: 'PRELOAD_READY',
-          payload: {
-            file,
-            cacheKey,
-            bufferSize,
-            fromCache: false,
-            method: 'binary',
-            redisResponse: saveData,
-          },
-        });
-      } else {
-        // Para archivos pequeños <50MB, usar JSON base64 (más simple)
-        console.log(`[filePreloadWorker] Archivo pequeño (${sizeMB.toFixed(2)} MB), usando base64...`);
-        
-        const saveResponse = await fetch(`${PRELOAD_API_BASE}/cache`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            cacheKey,
-            buffer: arrayBufferToBase64(buffer),
-          }),
-        });
-
-        if (!saveResponse.ok) {
-          const errorData = await saveResponse.json();
-          throw new Error(errorData.error || `Error HTTP: ${saveResponse.status}`);
-        }
-
-        const saveData = await saveResponse.json();
-        currentPreload.status = 'ready';
-
-        console.log(
-          `[filePreloadWorker] Precarga lista (base64): ${file.name} (${sizeMB.toFixed(2)} MB en Redis)`
-        );
-
-        self.postMessage({
-          type: 'PRELOAD_READY',
-          payload: {
-            file,
-            cacheKey,
-            bufferSize,
-            fromCache: false,
-            method: 'base64',
-            redisResponse: saveData,
-          },
-        });
-      }
-    } catch (redisError) {
-      console.warn('[filePreloadWorker] Error guardando en Redis, usando memoria local:', redisError);
-      // Fallback: si Redis falla, continuamos sin caché persistente
-      currentPreload.status = 'ready';
-
-      self.postMessage({
-        type: 'PRELOAD_READY',
-        payload: {
-          file,
-          cacheKey,
-          bufferSize,
-          fromCache: false,
-          warning: 'Redis fallback - sin persistencia',
-        },
-      });
-    }
+    // =========================================
+    // ESTRATEGIA: Archivos >=50MB = Burst Preload (5MB + metadatos)
+    // =========================================
+    await preloadBurstFile(file, cacheKey, streamUrl, fileSizeBytes, fileSizeMB);
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
       console.log('[filePreloadWorker] Precarga abortada');
@@ -282,7 +161,7 @@ async function handlePreloadFile(file: FileInfoPayload) {
     }
 
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error(`[filePreloadWorker] Error precargando: ${errorMessage}`);
+    console.error(`[filePreloadWorker] Error: ${errorMessage}`);
 
     if (currentPreload) {
       currentPreload.status = 'error';
@@ -297,6 +176,196 @@ async function handlePreloadFile(file: FileInfoPayload) {
       },
     });
   }
+}
+
+/**
+ * Precarga pequeña: Descargar archivo completo y almacenar en Redis
+ * Flujo: Descarga completa → Redis metadata + content
+ */
+async function preloadSmallFile(
+  file: FileInfoPayload,
+  cacheKey: string,
+  streamUrl: string,
+  fileSize: number,
+  fileSizeMB: number
+) {
+  try {
+    console.log(`[filePreloadWorker] Pequeño archivo: descargando completo (${fileSizeMB.toFixed(2)}MB)`);
+
+    const response = await fetch(streamUrl, {
+      signal: currentPreload!.abortController!.signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const buffer = await response.arrayBuffer();
+
+    // Verificar cancelación
+    if (currentPreload!.abortController?.signal.aborted) {
+      console.log(`[filePreloadWorker] Cancelado: ${file.name}`);
+      return;
+    }
+
+    // Guardar en Redis con contenido
+    try {
+      const saveResponse = await fetch(`${PRELOAD_API_BASE}/cache`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cacheKey,
+          metadata: {
+            name: file.name,
+            path: file.path,
+            size: fileSize,
+            type: 'complete',
+          },
+          buffer: serializeBuffer(buffer), // Enviar como typed array, no base64
+        }),
+      });
+
+      if (!saveResponse.ok) {
+        const error = await saveResponse.json();
+        throw new Error(error.error || `HTTP ${saveResponse.status}`);
+      }
+
+      currentPreload!.status = 'ready';
+
+      console.log(`[filePreloadWorker] ✓ Listo: ${file.name} (${fileSizeMB.toFixed(2)}MB en Redis)`);
+
+      self.postMessage({
+        type: 'PRELOAD_READY',
+        payload: {
+          file,
+          cacheKey,
+          bufferSize: fileSize,
+          fromCache: false,
+          strategy: 'complete',
+        },
+      });
+    } catch (redisError) {
+      console.warn('[filePreloadWorker] Redis falló, fallback a streaming:', redisError);
+      // Fallback: continuar sin Redis
+      currentPreload!.status = 'ready';
+      self.postMessage({
+        type: 'PRELOAD_READY',
+        payload: {
+          file,
+          cacheKey,
+          warning: 'Streaming sin caché',
+        },
+      });
+    }
+  } catch (error) {
+    throw error;
+  }
+}
+
+/**
+ * Precarga grande (Burst): Descargar solo 5MB inicial + metadatos
+ * El rest se streamea from NVMe con Range Requests
+ * Flujo: HEAD → Descarga 5MB burst → Redis metadata + burst
+ */
+async function preloadBurstFile(
+  file: FileInfoPayload,
+  cacheKey: string,
+  streamUrl: string,
+  fileSize: number,
+  fileSizeMB: number
+) {
+  try {
+    const burstSizeMB = BURST_SIZE_BYTES / 1024 / 1024;
+    console.log(`[filePreloadWorker] Grande archivo: burst preload (5MB + metadatos, streaming NVMe)`);
+
+    // Descargar solo los primeros BURST_SIZE_BYTES usando Range Request
+    const rangeUrl = `${streamUrl}`;
+    const rangeResponse = await fetch(rangeUrl, {
+      headers: {
+        'Range': `bytes=0-${BURST_SIZE_BYTES - 1}`,
+      },
+      signal: currentPreload!.abortController!.signal,
+    });
+
+    if (!rangeResponse.ok && rangeResponse.status !== 206) {
+      throw new Error(`HTTP ${rangeResponse.status}`);
+    }
+
+    const burstBuffer = await rangeResponse.arrayBuffer();
+    const burstSizeActual = burstBuffer.byteLength;
+
+    // Verificar cancelación
+    if (currentPreload!.abortController?.signal.aborted) {
+      console.log(`[filePreloadWorker] Cancelado: ${file.name}`);
+      return;
+    }
+
+    // Guardar en Redis: metadatos + burst pequeño
+    try {
+      const saveResponse = await fetch(`${PRELOAD_API_BASE}/cache/burst`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cacheKey,
+          metadata: {
+            name: file.name,
+            path: file.path,
+            size: fileSize,
+            burstSize: burstSizeActual,
+            type: 'burst',
+            streamUrl: streamUrl, // Guardar URL para streaming posterior
+          },
+          burst: serializeBuffer(burstBuffer),
+        }),
+      });
+
+      if (!saveResponse.ok) {
+        const error = await saveResponse.json();
+        throw new Error(error.error || `HTTP ${saveResponse.status}`);
+      }
+
+      currentPreload!.status = 'ready';
+
+      console.log(
+        `[filePreloadWorker] ✓ Listo: ${file.name} (${fileSizeMB.toFixed(2)}MB total) - Burst: ${(burstSizeActual / 1024 / 1024).toFixed(2)}MB en Redis`
+      );
+
+      self.postMessage({
+        type: 'PRELOAD_READY',
+        payload: {
+          file,
+          cacheKey,
+          fileSize,
+          burstSize: burstSizeActual,
+          fromCache: false,
+          strategy: 'burst',
+          message: `Usar Range Requests para streaming del resto`,
+        },
+      });
+    } catch (redisError) {
+      console.warn('[filePreloadWorker] Redis falló, fallback a streaming puro:', redisError);
+      currentPreload!.status = 'ready';
+      self.postMessage({
+        type: 'PRELOAD_READY',
+        payload: {
+          file,
+          cacheKey,
+          warning: 'Streaming puro sin burst',
+        },
+      });
+    }
+  } catch (error) {
+    throw error;
+  }
+}
+
+/**
+ * Serializar ArrayBuffer para JSON (usando typed array)
+ * NOTA: Evitamos Base64 completamente
+ */
+function serializeBuffer(buffer: ArrayBuffer): any {
+  // Para JSON.stringify, convertir a Array para que sea serializable
+  return Array.from(new Uint8Array(buffer));
 }
 
 /**
@@ -360,10 +429,10 @@ async function sendPreloadStatus() {
         redisStats: stats,
         currentFile: currentPreload
           ? {
-              name: currentPreload.fileName,
-              path: currentPreload.filePath,
-              status: currentPreload.status,
-            }
+            name: currentPreload.fileName,
+            path: currentPreload.filePath,
+            status: currentPreload.status,
+          }
           : null,
       },
     });
@@ -379,10 +448,10 @@ async function sendPreloadStatus() {
         redisError: errorMessage,
         currentFile: currentPreload
           ? {
-              name: currentPreload.fileName,
-              path: currentPreload.filePath,
-              status: currentPreload.status,
-            }
+            name: currentPreload.fileName,
+            path: currentPreload.filePath,
+            status: currentPreload.status,
+          }
           : null,
       },
     });

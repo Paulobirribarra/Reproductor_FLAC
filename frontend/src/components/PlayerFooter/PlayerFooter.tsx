@@ -27,7 +27,7 @@ const formatTime = (seconds: number) => {
 };
 
 export const PlayerFooter: React.FC<PlayerFooterProps> = ({ 
-  sessionState, 
+  , 
   files,
   onPlayPause,
   onSeek,
@@ -55,11 +55,11 @@ export const PlayerFooter: React.FC<PlayerFooterProps> = ({
             onChange={(e) => onSeek(parseFloat(e.target.value))}
             className="w-full h-1 bg-blue-400 rounded appearance-none cursor-pointer"
             style={{
-              background: `linear-gradient(to right, #2563eb 0%, #2563eb ${
+              background: `linear-gradient(to right, #4ae7ec 0%, #13afec ${
                 sessionState.duration ? (sessionState.currentTime / sessionState.duration) * 100 : 0
-              }%, #93c5fd ${
+              }%, #13afec ${
                 sessionState.duration ? (sessionState.currentTime / sessionState.duration) * 100 : 0
-              }%, #93c5fd 100%)`,
+              }%, #4ae7ec 100%)`,
             }}
           />
         </div>

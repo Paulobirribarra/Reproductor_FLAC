@@ -9,13 +9,13 @@ export const filesApi = {
   uploadFile: (file: File, folder?: string) => {
     const formData = new FormData();
     formData.append('file', file);
-    
+
     const params = new URLSearchParams();
     if (folder) params.append('folder', folder);
-    
+
     const queryString = params.toString();
     const url = queryString ? `/files/upload?${queryString}` : '/files/upload';
-    
+
     return api.post<ApiResponse<FileInfo>>(url, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
@@ -34,7 +34,7 @@ export const filesApi = {
   },
 
   renameFile: (fileName: string, newName: string, folder?: string) => {
-    return api.patch<ApiResponse>(`/files/${encodeURIComponent(fileName)}/rename`, 
+    return api.patch<ApiResponse>(`/files/${encodeURIComponent(fileName)}/rename`,
       { newName },
       { params: { folder: folder || '' } }
     );
@@ -61,7 +61,11 @@ export const filesApi = {
   },
 
   getFileStream: (fileName: string, folder?: string) => {
-    const params = folder ? `?folder=${folder}` : '';
-    return `/api/files/${fileName}/stream${params}`;
+    const params = folder ? `?folder=${encodeURIComponent(folder)}` : '';
+    // ⭐ IMPORTANTE: Usar URL absoluta con import.meta.env.VITE_API_URL
+    // En desarrollo: http://localhost:3000
+    // En producción: https://api.example.com
+    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+    return `${baseUrl}/api/files/${encodeURIComponent(fileName)}/stream${params}`;
   },
 };

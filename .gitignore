@@ -1,6 +1,10 @@
 # Dependencies
 frontend/node_modules/
 backend/node_modules/
+Docs/
+Documentation/
+Scripts/
+Tests/
 
 # Build outputs
 frontend/dist/

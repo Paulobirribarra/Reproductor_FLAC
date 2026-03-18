@@ -7,7 +7,9 @@ export function createPreloadRoutes() {
 
   /**
    * GET /api/preload/cache/:cacheKey
-   * Obtener archivo del caché Redis
+   * Obtener contenido del caché Redis (si existe)
+   * Para archivos pequeños (<1MB) devuelve el contenido
+   * Para archivos grandes devuelve metadatos con ruta para streaming
    */
   router.get('/cache/:cacheKey', async (req, res) => {
     try {
@@ -17,15 +19,30 @@ export function createPreloadRoutes() {
         return res.status(400).json({ success: false, error: 'Cache key required' });
       }
 
-      const buffer = await redisService.getFromCache(cacheKey);
+      const result = await redisService.getFromCache(cacheKey);
 
-      if (!buffer) {
+      if (!result) {
         return res.status(404).json({ success: false, error: 'Not found in cache' });
       }
 
-      res.setHeader('Content-Type', 'application/octet-stream');
-      res.setHeader('Cache-Control', 'no-cache');
-      res.send(buffer);
+      const { metadata, content } = result;
+
+      // Si hay contenido (archivo pequeño), devolverlo como binary
+      if (content) {
+        res.setHeader('Content-Type', 'application/octet-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('X-Storage-Type', 'content');
+        res.send(content);
+      } else {
+        // Solo metadatos: cliente debe hacer streaming desde NVMe
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('X-Storage-Type', 'metadata');
+        res.json({
+          success: true,
+          metadata,
+          message: 'Archivo grande: usar streaming desde ruta',
+        });
+      }
     } catch (error) {
       console.error('[Preload] Error obteniendo caché:', error.message);
       res.status(500).json({ success: false, error: error.message });
@@ -34,29 +51,30 @@ export function createPreloadRoutes() {
 
   /**
    * POST /api/preload/cache
-   * Guardar archivo en caché Redis
-   * Body: { cacheKey: string, buffer: Buffer }
+   * Guardar archivo pequeño en caché (<1MB)
+   * Rechazar archivos grandes (>1MB)
    */
   router.post('/cache', async (req, res) => {
     try {
-      const { cacheKey } = req.body;
-      const buffer = req.body.buffer;
+      const { cacheKey, buffer, metadata } = req.body;
 
-      if (!cacheKey || !buffer) {
-        return res.status(400).json({ success: false, error: 'Cache key and buffer required' });
+      if (!cacheKey || !metadata) {
+        return res.status(400).json({ success: false, error: 'Cache key and metadata required' });
       }
 
-      // Convertir base64 a Buffer si es necesario
-      let bufferToSave = buffer;
-      if (typeof buffer === 'string') {
+      // Convertir base64 a Buffer si existe
+      let bufferToSave = null;
+      if (buffer && typeof buffer === 'string') {
         bufferToSave = Buffer.from(buffer, 'base64');
+      } else if (Buffer.isBuffer(buffer)) {
+        bufferToSave = buffer;
       }
 
-      const result = await redisService.saveToCache(cacheKey, bufferToSave);
+      const result = await redisService.saveToCache(cacheKey, metadata, bufferToSave);
 
       res.status(200).json({
         success: true,
-        message: 'Archivo guardado en caché',
+        message: 'Precarga procesada',
         ...result,
       });
     } catch (error) {
@@ -66,42 +84,37 @@ export function createPreloadRoutes() {
   });
 
   /**
-   * POST /api/preload/cache/binary
-   * Guardar archivo grande en caché Redis (sin base64, streaming binario)
-   * Content-Type: application/octet-stream
-   * Query: ?cacheKey=archivo.flac
+   * POST /api/preload/cache/burst
+   * Guardar metadata + pequeño burst (5MB) del archivo
+   * Usado para archivos grandes en estrategia "burst preload"
    */
-  router.post('/cache/binary', async (req, res) => {
+  router.post('/cache/burst', async (req, res) => {
     try {
-      const { cacheKey } = req.query;
+      const { cacheKey, metadata } = req.body;
+      let bufferBurst = req.body.burst;
 
-      if (!cacheKey) {
-        return res.status(400).json({ success: false, error: 'Cache key required in query' });
+      if (!cacheKey || !metadata) {
+        return res.status(400).json({ success: false, error: 'Cache key and metadata required' });
       }
 
-      // El body es el buffer binario directo
-      let bufferToSave;
-      
-      if (Buffer.isBuffer(req.body)) {
-        bufferToSave = req.body;
-      } else if (typeof req.body === 'string') {
-        // Fallback si llega como string (no debería pasar)
-        bufferToSave = Buffer.from(req.body);
+      // Convertir burst a Buffer si es necesario
+      if (bufferBurst && typeof bufferBurst === 'string') {
+        bufferBurst = Buffer.from(bufferBurst, 'base64');
+      } else if (Buffer.isBuffer(bufferBurst)) {
+        // Ya es buffer
       } else {
-        return res.status(400).json({ success: false, error: 'Invalid binary data' });
+        bufferBurst = null;
       }
 
-      console.log(`[Preload] Guardando binario: ${cacheKey} (${(bufferToSave.length / 1024 / 1024).toFixed(2)} MB)`);
-
-      const result = await redisService.saveToCache(cacheKey, bufferToSave);
+      const result = await redisService.saveToCache(cacheKey, metadata, bufferBurst);
 
       res.status(200).json({
         success: true,
-        message: 'Archivo binario guardado en caché',
+        message: 'Burst preload guardado',
         ...result,
       });
     } catch (error) {
-      console.error('[Preload] Error guardando caché binario:', error.message);
+      console.error('[Preload] Error guardando burst:', error.message);
       res.status(500).json({ success: false, error: error.message });
     }
   });

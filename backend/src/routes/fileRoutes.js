@@ -59,13 +59,13 @@ export function createFileRoutes(fileService, upload) {
       const { folderName, parentFolder } = req.body;
 
       if (!folderName) {
-        return res.status(400).json({ success: false, error: 'Folder name is required' });
+        return res.status(400).json({ success: false, error: 'El nombre de la carpeta es requerido' });
       }
 
       const result = await fileService.createFolder(folderName, parentFolder || '');
       res.status(201).json(result);
     } catch (error) {
-      console.error('Error creating folder:', error);
+      console.error('Error Creando Carpeta:', error);
       res.status(400).json({ success: false, error: error.message });
     }
   });
@@ -78,7 +78,7 @@ export function createFileRoutes(fileService, upload) {
       const decodedFileName = decodeURIComponent(fileName);
 
       if (!newName) {
-        return res.status(400).json({ success: false, error: 'New name is required' });
+        return res.status(400).json({ success: false, error: 'El nuevo nombre es requerido' });
       }
 
       const filePath = currentFolder ? `${currentFolder}/${decodedFileName}` : decodedFileName;
@@ -86,12 +86,12 @@ export function createFileRoutes(fileService, upload) {
 
       res.json(result);
     } catch (error) {
-      console.error('Error renaming file:', error);
+      console.error('Error Renombrando Archivo:', error);
       res.status(400).json({ success: false, error: error.message });
     }
   });
 
-  // Descargar/reproducir archivo
+  // Descargar/reproducir archivo con Range Requests (RFC 7233)
   router.get('/:fileName/stream', async (req, res) => {
     try {
       const { fileName } = req.params;
@@ -108,21 +108,71 @@ export function createFileRoutes(fileService, upload) {
       const fullPath = await fileService.getFileStream(filePath);
       console.log('Stream request - fullPath:', fullPath);
 
-      // Usar sendFile con Range support para mejor streaming de audio
       // Determinar Content-Type según la extensión
       let contentType = 'audio/flac';
       const lowerFileName = decodedFileName.toLowerCase();
       if (lowerFileName.endsWith('.mp3')) {
         contentType = 'audio/mpeg';
       }
-      
-      res.sendFile(fullPath, {
-        headers: {
-          'Accept-Ranges': 'bytes',
-          'Content-Type': contentType,
-          'Cache-Control': 'public, max-age=3600'
+
+      // Obtener información del archivo para Range Requests
+      const stats = await fileService.getFileStats(filePath);
+      const fileSize = stats.size;
+
+      // Procesar Range Request (RFC 7233)
+      const rangeHeader = req.headers.range;
+
+      if (rangeHeader) {
+        console.log(`[FileRoutes] Range request: ${rangeHeader}`);
+        const rangeMatch = rangeHeader.match(/bytes=(\d+)?-(\d+)?/);
+
+        if (rangeMatch) {
+          let start = parseInt(rangeMatch[1], 10) || 0;
+          let end = parseInt(rangeMatch[2], 10) || fileSize - 1;
+
+          // Validar rango
+          if (start >= fileSize || end >= fileSize) {
+            return res.status(416)
+              .set('Content-Range', `bytes */${fileSize}`)
+              .send('Range Not Satisfiable');
+          }
+
+          if (start > end) {
+            start = 0;
+            end = fileSize - 1;
+          }
+
+          const contentLength = end - start + 1;
+
+          res.status(206).set({
+            'Content-Type': contentType,
+            'Content-Length': contentLength,
+            'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+            'Accept-Ranges': 'bytes',
+            'Cache-Control': 'public, max-age=3600',
+          });
+
+          console.log(`[FileRoutes] Sending 206 Partial Content: ${start}-${end}/${fileSize} (${(contentLength / 1024 / 1024).toFixed(2)}MB)`);
+
+          // Usar createReadStream con opciones de rango
+          const stream = fileService.createFileStream(fullPath, start, end);
+          stream.pipe(res);
+          return;
         }
+      }
+
+      // Sin Range Request o Range inválido: enviar todo el archivo
+      res.set({
+        'Content-Type': contentType,
+        'Content-Length': fileSize,
+        'Accept-Ranges': 'bytes',
+        'Cache-Control': 'public, max-age=3600',
       });
+
+      console.log(`[FileRoutes] Sending full content: ${(fileSize / 1024 / 1024).toFixed(2)}MB`);
+
+      const stream = fileService.createFileStream(fullPath, 0, fileSize - 1);
+      stream.pipe(res);
     } catch (error) {
       console.error('Error streaming file:', error);
       res.status(404).json({ success: false, error: 'File not found' });

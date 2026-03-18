@@ -6,14 +6,14 @@ export class RedisService {
     this.redis = null;
     this.connected = false;
     this.maxCacheSize = parseInt(process.env.REDIS_MAX_CACHE_SIZE || '1073741824', 10); // 1 GB por defecto
-    
+
     // Usar prefijo desde .env (default: 'audio:')
     const appPrefix = process.env.REDIS_KEY_PREFIX || 'audio:';
     this.cachePrefix = appPrefix + 'preload:';
     this.cacheSizeKey = appPrefix + 'size';
-    
+
     this.cacheTTL = parseInt(process.env.REDIS_CACHE_TTL || '86400', 10); // 24 horas por defecto
-    
+
     // Log del prefijo para debugging
     const appName = process.env.APP_NAME || 'app';
     console.log(`[Redis] Inicializando: ${appName} con prefijo "${appPrefix}"`);
@@ -67,44 +67,78 @@ export class RedisService {
   }
 
   /**
-   * Guardar archivo en caché
+   * Guardar metadatos de precarga (NO el archivo)
+   * Solo archivos pequeños (<1MB) se almacenan completos
+   * Archivos grandes: solo guardar ruta y metadata
    * @param {string} cacheKey - Identificador único del archivo
-   * @param {Buffer} buffer - Contenido del archivo
-   * @returns {Promise<{success: boolean, size: number}>}
+   * @param {Object} metadata - { path, size, timestamp, type }
+   * @param {Buffer} buffer - Contenido (solo para archivos <1MB)
+   * @returns {Promise<{success: boolean, stored: string}>}
    */
-  async saveToCache(cacheKey, buffer) {
+  async saveToCache(cacheKey, metadata, buffer = null) {
     try {
       if (!this.isConnected()) {
         throw new Error('Redis no está conectado');
       }
 
-      const bufferSize = buffer.length;
-      const currentSize = await this.getCacheSizeBytes();
+      const SMALL_FILE_THRESHOLD = 1048576; // 1MB en bytes
+      let storageType = 'metadata'; // Por defecto: solo metadatos
+      let bufferSize = 0;
 
-      // Verificar límite de tamaño
-      if (currentSize + bufferSize > this.maxCacheSize) {
-        console.warn(
-          `[Redis] Límite de caché alcanzado: ${(currentSize / 1024 / 1024).toFixed(2)}MB + ${(bufferSize / 1024 / 1024).toFixed(2)}MB > ${(this.maxCacheSize / 1024 / 1024).toFixed(2)}MB`
-        );
-        throw new Error('Cache size limit exceeded');
+      // Solo guardar archivo si es pequeño (<1MB) y buffer existe
+      if (buffer && buffer.length <= SMALL_FILE_THRESHOLD) {
+        bufferSize = buffer.length;
+        storageType = 'content'; // Guardar contenido también
+      } else if (buffer && buffer.length > SMALL_FILE_THRESHOLD) {
+        console.log(`[Redis] Archivo rechazado: ${(buffer.length / 1024 / 1024).toFixed(2)}MB excede 1MB. Solo guardando metadatos.`);
       }
 
-      // Guardar con TTL
       const fullKey = this.cachePrefix + cacheKey;
-      await this.redis.setex(fullKey, this.cacheTTL, buffer);
 
-      // Actualizar tamaño
-      const newSize = currentSize + bufferSize;
-      await this.redis.set(this.cacheSizeKey, newSize);
+      // Guardar metadatos en JSON
+      const cacheEntry = {
+        ...metadata,
+        storageType,
+        bufferSize,
+        timestamp: Date.now(),
+      };
 
-      console.log(
-        `[Redis] Archivo guardado: ${cacheKey} (${(bufferSize / 1024 / 1024).toFixed(2)}MB). Caché total: ${(newSize / 1024 / 1024).toFixed(2)}MB`
-      );
+      // Si es pequeño, guardar con contenido; si es grande, solo metadatos
+      if (storageType === 'content' && buffer) {
+        // Para archivos pequeños: guardar metadata + contenido
+        await this.redis.setex(
+          fullKey,
+          this.cacheTTL,
+          JSON.stringify({
+            ...cacheEntry,
+            _hasContent: true,
+          })
+        );
+
+        // Guardar contenido en clave separada
+        const contentKey = fullKey + ':content';
+        await this.redis.setex(contentKey, this.cacheTTL, buffer);
+
+        console.log(
+          `[Redis] Archivo pequeño guardado: ${cacheKey} (${(bufferSize / 1024 / 1024).toFixed(2)}MB) con contenido en caché`
+        );
+      } else {
+        // Para archivos grandes: solo metadatos, sin contenido en Redis
+        await this.redis.setex(
+          fullKey,
+          this.cacheTTL,
+          JSON.stringify(cacheEntry)
+        );
+
+        console.log(
+          `[Redis] Metadatos guardados: ${cacheKey} (${(metadata.size / 1024 / 1024).toFixed(2)}MB) - streaming desde NVMe`
+        );
+      }
 
       return {
         success: true,
         size: bufferSize,
-        totalCacheSize: newSize,
+        storageType,
       };
     } catch (error) {
       console.error('[Redis] Error guardando caché:', error.message);
@@ -115,7 +149,7 @@ export class RedisService {
   /**
    * Obtener archivo del caché
    * @param {string} cacheKey - Identificador único del archivo
-   * @returns {Promise<Buffer|null>}
+   * @returns {Promise<{metadata: object, content: Buffer|null}>}
    */
   async getFromCache(cacheKey) {
     try {
@@ -124,17 +158,28 @@ export class RedisService {
       }
 
       const fullKey = this.cachePrefix + cacheKey;
-      const buffer = await this.redis.getBuffer(fullKey);
+      const metadataStr = await this.redis.get(fullKey);
 
-      if (buffer) {
-        console.log(`[Redis] Cache hit: ${cacheKey}`);
-        // Renovar TTL
-        await this.redis.expire(fullKey, this.cacheTTL);
-      } else {
+      if (!metadataStr) {
         console.log(`[Redis] Cache miss: ${cacheKey}`);
+        return null;
       }
 
-      return buffer;
+      const metadata = JSON.parse(metadataStr);
+      console.log(`[Redis] Cache hit: ${cacheKey}`);
+
+      // Renovar TTL
+      await this.redis.expire(fullKey, this.cacheTTL);
+
+      // Si hay contenido almacenado, obtenerlo también
+      let content = null;
+      if (metadata._hasContent) {
+        const contentKey = fullKey + ':content';
+        content = await this.redis.getBuffer(contentKey);
+        await this.redis.expire(contentKey, this.cacheTTL);
+      }
+
+      return { metadata, content };
     } catch (error) {
       console.error('[Redis] Error obteniendo caché:', error.message);
       return null;
@@ -173,18 +218,22 @@ export class RedisService {
       }
 
       const fullKey = this.cachePrefix + cacheKey;
-      const buffer = await this.redis.getBuffer(fullKey);
-      const deleted = await this.redis.del(fullKey);
 
-      if (deleted > 0 && buffer) {
-        // Actualizar tamaño
-        const currentSize = await this.getCacheSizeBytes();
-        const newSize = Math.max(0, currentSize - buffer.length);
-        await this.redis.set(this.cacheSizeKey, newSize);
+      // Obtener metadata para verificar si existe
+      const metadataStr = await this.redis.get(fullKey);
 
-        console.log(
-          `[Redis] Archivo eliminado: ${cacheKey}. Caché total: ${(newSize / 1024 / 1024).toFixed(2)}MB`
-        );
+      if (metadataStr) {
+        const metadata = JSON.parse(metadataStr);
+
+        // Eliminar metadatos
+        await this.redis.del(fullKey);
+
+        // Eliminar contenido si existe
+        if (metadata._hasContent) {
+          await this.redis.del(fullKey + ':content');
+        }
+
+        console.log(`[Redis] Archivo eliminado: ${cacheKey}`);
         return true;
       }
 
@@ -205,16 +254,13 @@ export class RedisService {
         return false;
       }
 
-      // Buscar todas las claves de caché
+      // Buscar todas las claves de caché (metadata + content)
       const keys = await this.redis.keys(this.cachePrefix + '*');
       if (keys.length > 0) {
         await this.redis.del(...keys);
       }
 
-      // Resetear tamaño
-      await this.redis.set(this.cacheSizeKey, 0);
-
-      console.log(`[Redis] Caché limpiado (${keys.length} archivos eliminados)`);
+      console.log(`[Redis] Caché limpiado (${keys.length} claves eliminadas)`);
       return true;
     } catch (error) {
       console.error('[Redis] Error limpiando caché:', error.message);

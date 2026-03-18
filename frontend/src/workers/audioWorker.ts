@@ -97,7 +97,7 @@ self.onmessage = async (event: MessageEvent) => {
 
 function handleInitialize() {
   console.log('[audioWorker] Inicializado');
-  
+
   // Crear instancia del filePreloadWorker
   if (!preloadWorker) {
     try {
@@ -110,7 +110,7 @@ function handleInitialize() {
       console.warn('[audioWorker] No se pudo crear filePreloadWorker:', error);
     }
   }
-  
+
   broadcastState();
 }
 
@@ -157,11 +157,11 @@ function playFile(file: any) {
     }
   }
 
-  const folderQuery = folderParam ? `&folder=${encodeURIComponent(folderParam)}` : '';
-  const streamUrl = `/api/files/${encodeURIComponent(file.name)}/stream?${folderQuery}`;
-  
+  const folderQuery = folderParam ? `folder=${encodeURIComponent(folderParam)}` : '';
+  const streamUrl = `/api/files/${encodeURIComponent(file.name)}/stream${folderQuery ? '?' + folderQuery : ''}`;
+
   console.log(`[audioWorker] Stream URL: ${streamUrl}`);
-  
+
   // Pedir al main thread que reproduzca el archivo
   self.postMessage({
     type: 'PLAY_FILE',
@@ -177,36 +177,36 @@ function playFile(file: any) {
 function handlePause() {
   console.log('[audioWorker] Pausado');
   audioSession.isPlaying = false;
-  
+
   // Pedir al main thread que pause
   self.postMessage({ type: 'PAUSE_AUDIO' });
-  
+
   broadcastState();
 }
 
 function handleSeek(time: number) {
   console.log(`[audioWorker] Buscando a: ${time}s`);
   audioSession.currentTime = time;
-  
+
   // Pedir al main thread que haga seek
   self.postMessage({
     type: 'SEEK_AUDIO',
     payload: { time }
   });
-  
+
   broadcastState();
 }
 
 function handleSetVolume(volume: number) {
   console.log(`[audioWorker] Volumen: ${volume}`);
   audioSession.volume = Math.max(0, Math.min(1, volume));
-  
+
   // Pedir al main thread que ajuste volumen
   self.postMessage({
     type: 'SET_AUDIO_VOLUME',
     payload: { volume: audioSession.volume }
   });
-  
+
   broadcastState();
 }
 
@@ -234,14 +234,14 @@ function handleSetPlaylist(playlist: any[]) {
 function handleAudioEnded() {
   console.log('[audioWorker] Archivo terminó');
   audioSession.isPlaying = false;
-  
+
   // Auto-play siguiente
   if (audioSession.playlistIndex < audioSession.playlist.length - 1) {
     audioSession.playlistIndex++;
     const nextFile = audioSession.playlist[audioSession.playlistIndex];
     playFile(nextFile);
   }
-  
+
   broadcastState();
   self.postMessage({
     type: 'PLAYBACK_ENDED',

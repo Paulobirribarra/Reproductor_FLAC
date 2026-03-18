@@ -1,0 +1,46 @@
+MIT License
+
+Copyright (c) 2026 Reproductor FLAC Contributors
+
+---
+
+DISCLAIMER AND TERMS OF USE
+
+This project is built for audio enthusiasts who value high-quality, lossless 
+music playback and prefer to maintain full control over their personal media 
+libraries. This project is intended for personal use by individuals who wish to 
+manage and stream audio files they legally own.
+
+The software is designed for self-hosted environments (such as NAS, home servers, 
+Raspberry Pi, or WSL) and does not provide any media content.
+
+Users are solely responsible for ensuring that they have the legal rights to store, 
+stream, and reproduce any audio files used with this software.
+
+This project does not promote, support, or facilitate piracy, copyright infringement, 
+or unauthorized distribution of copyrighted material.
+
+By using this software, you agree to comply with all applicable copyright laws and 
+regulations in your jurisdiction.
+
+---
+
+MIT LICENSE
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to do so, subject to the
+following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
