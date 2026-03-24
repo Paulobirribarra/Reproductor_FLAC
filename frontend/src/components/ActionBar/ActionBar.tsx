@@ -10,7 +10,7 @@ interface ActionBarProps {
   canGoBack?: boolean;
 }
 
-export const ActionBar: React.FC<ActionBarProps> = ({ 
+export const ActionBar: React.FC<ActionBarProps> = ({
   onFolderCreated,
   onGoHome,
   onGoBack,
@@ -21,103 +21,51 @@ export const ActionBar: React.FC<ActionBarProps> = ({
   const [showCreateFolder, setShowCreateFolder] = useState(false);
 
   return (
-    <div style={{ 
-      backgroundColor: '#111827',
-      borderBottom: '1px solid #374151',
-      flexShrink: 0
-    }}>
-      <div style={{ 
-        padding: '10px 20px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: '15px'
-      }}>
+    <div className="flex-shrink-0 bg-zinc-900 border-b border-zinc-800">
+      <div className="px-6 py-4 flex items-center justify-between gap-4">
         {/* Navigation buttons */}
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          {/* Go Back Button */}
+        <div className="flex gap-2">
           <button
             onClick={onGoBack}
             disabled={!canGoBack}
-            style={{
-              backgroundColor: canGoBack ? '#6366f1' : '#6b7280',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              padding: '6px 12px',
-              cursor: canGoBack ? 'pointer' : 'default',
-              fontSize: '12px',
-              fontWeight: '600',
-              opacity: canGoBack ? 1 : 0.5
-            }}
+            className={`px-3 py-2 rounded-lg font-semibold text-sm transition-all duration-200 ${canGoBack
+                ? 'bg-zinc-700 text-white hover:bg-zinc-600'
+                : 'bg-zinc-800 text-zinc-500 cursor-not-allowed opacity-50'
+              }`}
             title="Volver a carpeta anterior"
           >
             ⬅ Atrás
           </button>
 
-          {/* Go Home Button */}
           <button
             onClick={onGoHome}
-            style={{
-              backgroundColor: '#3b82f6',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              padding: '6px 12px',
-              cursor: 'pointer',
-              fontSize: '12px',
-              fontWeight: '600'
-            }}
+            className="px-3 py-2 bg-blue-600 text-white rounded-lg font-semibold text-sm transition-all duration-200 hover:bg-blue-700"
             title="Ir a inicio"
           >
             🏠 Inicio
           </button>
         </div>
 
-        {/* Title */}
-        <div style={{
-          flex: 1,
-          color: 'white',
-          fontSize: '14px',
-          fontWeight: '600',
-          textAlign: 'center'
-        }}>
-          🎵 Vitrox Song´s
+        {/* Current Path */}
+        <div className="flex-1 text-center">
+          <p className="text-zinc-300 text-sm font-medium">
+            {currentPath ? `📁 ${currentPath}` : '📚 Biblioteca'}
+          </p>
         </div>
 
-        {/* Actions */}
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          {/* Upload Button */}
+        {/* Action buttons */}
+        <div className="flex gap-2">
           <button
             onClick={() => setShowUpload(!showUpload)}
-            style={{
-              padding: '6px 12px',
-              backgroundColor: '#2563eb',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              fontSize: '12px',
-              fontWeight: '600',
-              cursor: 'pointer'
-            }}
-            title="Cargar archivo"
+            className="px-3 py-2 bg-blue-600 text-white rounded-lg font-semibold text-sm transition-all duration-200 hover:bg-blue-700"
+            title="Subir archivo"
           >
             📤 Subir
           </button>
 
-          {/* Create Folder Button */}
           <button
             onClick={() => setShowCreateFolder(!showCreateFolder)}
-            style={{
-              padding: '6px 12px',
-              backgroundColor: '#16a34a',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              fontSize: '12px',
-              fontWeight: '600',
-              cursor: 'pointer'
-            }}
+            className="px-3 py-2 bg-emerald-600 text-white rounded-lg font-semibold text-sm transition-all duration-200 hover:bg-emerald-700"
             title="Crear carpeta"
           >
             ➕ Carpeta
@@ -125,85 +73,45 @@ export const ActionBar: React.FC<ActionBarProps> = ({
         </div>
       </div>
 
-      {/* Dropdown Upload */}
+      {/* Upload Panel */}
       {showUpload && (
-        <div style={{ 
-          borderTop: '1px solid #374151',
-          padding: '12px 20px',
-          backgroundColor: '#1f2937',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start',
-          gap: '10px'
-        }}>
-          <div style={{ flex: 1 }}>
-            <p style={{ 
-              color: '#d1d5db',
-              fontSize: '12px',
-              fontWeight: '600',
-              marginBottom: '8px'
-            }}>
-              Cargar archivo {currentPath && `en ${currentPath}`}
+        <div className="border-t border-zinc-800 bg-zinc-800/50 px-6 py-4 space-y-3 animate-slideUp">
+          <div className="flex justify-between items-center">
+            <p className="text-sm font-semibold text-white">
+              Subir archivo {currentPath && `en ${currentPath}`}
             </p>
-            <FileUpload />
+            <button
+              onClick={() => setShowUpload(false)}
+              className="text-zinc-400 hover:text-white transition-colors"
+              title="Cerrar"
+            >
+              ✕
+            </button>
           </div>
-          <button
-            onClick={() => setShowUpload(false)}
-            style={{
-              backgroundColor: '#ef4444',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              padding: '6px 10px',
-              cursor: 'pointer',
-              fontSize: '14px',
-              flexShrink: 0,
-              marginTop: '2px'
-            }}
-            title="Cerrar"
-          >
-            ✕
-          </button>
+          <FileUpload />
         </div>
       )}
 
-      {/* Dropdown Create Folder */}
+      {/* Create Folder Panel */}
       {showCreateFolder && (
-        <div style={{ 
-          borderTop: '1px solid #374151',
-          padding: '12px 20px',
-          backgroundColor: '#1f2937',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start',
-          gap: '10px'
-        }}>
-          <div style={{ flex: 1 }}>
-            <CreateFolder 
-              onFolderCreated={() => {
-                onFolderCreated();
-                setShowCreateFolder(false);
-              }} 
-              currentPath={currentPath} 
-            />
+        <div className="border-t border-zinc-800 bg-zinc-800/50 px-6 py-4 space-y-3 animate-slideUp">
+          <div className="flex justify-between items-center">
+            <p className="text-sm font-semibold text-white">Crear nueva carpeta</p>
+            <button
+              onClick={() => setShowCreateFolder(false)}
+              className="text-zinc-400 hover:text-white transition-colors"
+              title="Cerrar"
+            >
+              ✕
+            </button>
           </div>
-          <button
-            onClick={() => setShowCreateFolder(false)}
-            style={{
-              backgroundColor: '#ef4444',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              padding: '6px 10px',
-              cursor: 'pointer',
-              fontSize: '14px',
-              flexShrink: 0,
-              marginTop: '2px'
+          <CreateFolder
+            onFolderCreated={() => {
+              onFolderCreated();
+              setShowCreateFolder(false);
             }}
-            title="Cerrar"
-          >
-            ✕
-          </button>
+            currentPath={currentPath}
+          />
         </div>
       )}
     </div>

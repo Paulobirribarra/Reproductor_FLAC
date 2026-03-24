@@ -1,4 +1,6 @@
 import express from 'express';
+import { flacSplitService } from '../services/flacSplitService.js';
+import path from 'path';
 
 export function createFileRoutes(fileService, upload) {
   const router = express.Router();
@@ -42,11 +44,49 @@ export function createFileRoutes(fileService, upload) {
       console.log('[FileRoutes] Saving file to folder:', folder);
       const fileInfo = await fileService.saveFile(req.file, folder);
 
-      console.log('File uploaded:', fileInfo);
-      res.status(201).json({
-        success: true,
-        data: fileInfo,
-      });
+      // Detectar si el archivo necesita ser dividido
+      const isFLAC = req.file.originalname.toLowerCase().endsWith('.flac');
+      const shouldSplit = isFLAC && flacSplitService.constructor.shouldSplit(req.file.size);
+
+      if (shouldSplit) {
+        console.log(`[FileRoutes] Archivo grande detectado (${(req.file.size / 1024 / 1024).toFixed(2)}MB), iniciando split...`);
+
+        try {
+          // Obtener ruta absoluta del archivo
+          const uploadDir = fileService.uploadDir;
+          const normalizedFolder = folder ? folder.replace(/\//g, path.sep) : '';
+          const fullPath = path.join(uploadDir, normalizedFolder, req.file.originalname);
+          const outputDir = path.dirname(fullPath);
+          const baseFileName = req.file.originalname.replace(/\.flac$/i, '');
+
+          // Dividir archivo
+          const chunks = await flacSplitService.splitFlac(fullPath, outputDir, baseFileName);
+
+          // Retornar información de chunks en lugar del archivo original
+          console.log('File split:', chunks);
+          res.status(201).json({
+            success: true,
+            data: chunks,
+            message: `Archivo dividido en ${chunks.length} partes para mejor reproducción`,
+          });
+        } catch (error) {
+          console.error('[FileRoutes] Error dividiendo archivo:', error);
+          console.warn('[FileRoutes] Retornando archivo original (sin split)');
+
+          // Si el split falla, retornar el archivo original de todas formas
+          res.status(201).json({
+            success: true,
+            data: fileInfo,
+            warning: `No se pudo dividir archivo automáticamente: ${error.message}. Se guardó sin dividir.`,
+          });
+        }
+      } else {
+        console.log('File uploaded:', fileInfo);
+        res.status(201).json({
+          success: true,
+          data: Array.isArray(fileInfo) ? fileInfo : [fileInfo],
+        });
+      }
     } catch (error) {
       console.error('Error in upload:', error);
       res.status(500).json({ success: false, error: error.message });

@@ -129,11 +129,10 @@ export const FileItem: React.FC<FileItemProps> = ({ file, onPlay, onDelete, onRe
 
   return (
     <div
-      className={`p-3 rounded-lg border-2 transition-colors ${
-        isCurrentFile
+      className={`p-3 rounded-lg border-2 transition-colors ${isCurrentFile
           ? 'border-blue-500 bg-blue-600 text-white'
           : 'border-gray-600 bg-gray-800 hover:border-blue-400 hover:bg-gray-700 text-gray-100'
-      }`}
+        }`}
     >
       <div className="flex items-center justify-between gap-2">
         <div
@@ -155,9 +154,19 @@ export const FileItem: React.FC<FileItemProps> = ({ file, onPlay, onDelete, onRe
             />
           ) : (
             <>
-              <h4 className="font-semibold text-white truncate">{file.name}</h4>
+              <div className="flex items-center gap-2">
+                <h4 className="font-semibold text-white truncate">{file.name}</h4>
+                {/* ✨ Badge para tracks chunked */}
+                {(file as any).isChunked && (
+                  <span className="text-xs bg-blue-600 text-blue-100 px-2 py-0.5 rounded whitespace-nowrap">
+                    📦 {(file as any).chunkCount} partes
+                  </span>
+                )}
+              </div>
               <p className="text-sm text-gray-300">
-                {(file.size / 1024 / 1024).toFixed(2)} MB • {formatDate(file.uploadedAt)}
+                {(file.size / 1024 / 1024).toFixed(2)} MB
+                {(file as any).duration && ` • ⏱️ ${Math.floor((file as any).duration / 60)}:${String((file as any).duration % 60).padStart(2, '0')}`}
+                • {formatDate(file.uploadedAt)}
               </p>
             </>
           )}

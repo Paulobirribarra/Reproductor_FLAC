@@ -21,6 +21,67 @@ export class FileService {
     return path.relative(this.uploadDir, fullPath);
   }
 
+  // ✨ Agrupar archivos chunked en un solo "virtual track"
+  groupChunkedFiles(fileInfos, folderPath) {
+    const chunkMap = new Map(); // "baseFileName" -> [chunks]
+    const nonChunkedFiles = [];
+
+    // Separar chunks de archivos normales
+    for (const file of fileInfos) {
+      const match = file.name.match(/^(.+)_pt(\d+)\.flac$/i);
+      if (match) {
+        const baseFileName = match[1];
+        if (!chunkMap.has(baseFileName)) {
+          chunkMap.set(baseFileName, []);
+        }
+        chunkMap.get(baseFileName).push(file);
+      } else {
+        nonChunkedFiles.push(file);
+      }
+    }
+
+    // Crear "virtual tracks" para grupos de chunks
+    const groupedTracks = [];
+    for (const [baseName, chunks] of chunkMap.entries()) {
+      // Ordenar chunks numéricamente
+      chunks.sort((a, b) => {
+        const aNum = parseInt(a.name.match(/_pt(\d+)/i)[1]);
+        const bNum = parseInt(b.name.match(/_pt(\d+)/i)[1]);
+        return aNum - bNum;
+      });
+
+      // Calcular tamaño total
+      const totalSize = chunks.reduce((sum, c) => sum + c.size, 0);
+
+      // Estimar duración (FLAC típicamente ~1000 bytes/segundo a calidad alta)
+      // Esto es una aproximación; idealmente usarías ffprobe
+      const estimatedDurationSeconds = totalSize / 1024;
+
+      // Crear track virtual que representa toda la obra
+      groupedTracks.push({
+        type: 'file',
+        id: baseName,
+        name: baseName + '.flac', // Mostrar como archivo completo
+        originalName: baseName + '.flac',
+        size: totalSize,
+        duration: estimatedDurationSeconds,
+        uploadedAt: chunks[0].uploadedAt,
+        path: chunks[0].path.replace(/_pt\d+\.flac/i, '.flac'), // Ruta "virtual"
+        isChunked: true,
+        chunkCount: chunks.length,
+        chunks: chunks.map(c => ({
+          name: c.name,
+          path: c.path,
+          size: c.size,
+          order: parseInt(c.name.match(/_pt(\d+)/i)[1]),
+        })),
+      });
+    }
+
+    // Retornar: archivos normales + tracks virtuales agrupados
+    return [...nonChunkedFiles, ...groupedTracks];
+  }
+
   async listFiles(folder = '') {
     try {
       // Normalizar la ruta: convertir / a separador del SO (solo si hay contenido)
@@ -56,7 +117,7 @@ export class FileService {
         } else {
           try {
             const stats = await fs.stat(itemPath);
-            console.log(`[FileService] 📄 Archivo encontrado: ${item.name} (${stats.size} bytes) → path: ${fullPath}`);
+            console.log(`[FileService]  Archivo encontrado: ${item.name} (${stats.size} bytes) → path: ${fullPath}`);
             fileInfos.push({
               type: 'file',
               id: item.name.replace(/\.[^.]+$/, ''),
@@ -72,9 +133,12 @@ export class FileService {
         }
       }
 
-      console.log(`[FileService] Resumen: ${fileInfos.length} archivos, ${folders.length} carpetas`);
+      // ✨ AGRUPAR CHUNKS: Detectar archivos divididos y agruparlos
+      const groupedFiles = this.groupChunkedFiles(fileInfos, folderPath);
+
+      console.log(`[FileService] Resumen: ${groupedFiles.length} archivos (incluyendo agrupados), ${folders.length} carpetas`);
       return {
-        files: fileInfos,
+        files: groupedFiles,
         folders: folders,
         currentPath: folder || '/',
       };

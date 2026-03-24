@@ -1,6 +1,9 @@
 FROM node:20-alpine
 WORKDIR /app
-RUN apk add --no-cache bash
+
+# Instalar dependencias de sistema necesarias para split de archivos FLAC
+RUN apk add --no-cache bash ffmpeg
+
 COPY package*.json ./
 RUN npm install
 COPY . .

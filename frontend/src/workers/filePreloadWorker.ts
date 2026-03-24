@@ -145,7 +145,10 @@ async function handlePreloadFile(file: FileInfoPayload) {
     // =========================================
     // ESTRATEGIA: Archivos <50MB = Precarga Completa
     // =========================================
-    if (fileSizeMB < SMALL_FILE_THRESHOLD_MB) {
+    //  Nota: Redis tiene límite ~512MB por entrada, pero el protocolo RESP
+    // puede tener límites menores. Para chunks FLAC >10MB, mejor usar streaming.
+    const REDIS_MAX_SIZE_MB = 10; // Límite práctico para Redis
+    if (fileSizeMB < REDIS_MAX_SIZE_MB) {
       await preloadSmallFile(file, cacheKey, streamUrl, fileSizeBytes, fileSizeMB);
       return;
     }
@@ -244,8 +247,21 @@ async function preloadSmallFile(
           strategy: 'complete',
         },
       });
-    } catch (redisError) {
-      console.warn('[filePreloadWorker] Redis falló, fallback a streaming:', redisError);
+    } catch (redisError: any) {
+      //  Redis falló probablemente porque el archivo es demasiado grande
+      // para el protocolo RESP o el servidor. Esto es NORMAL para chunks >10MB.
+      // Silenciosamente fallback a streaming sin mostrar error.
+      const isEntityTooLarge =
+        redisError?.message?.includes('entity too large') ||
+        redisError?.message?.includes('payload too large') ||
+        redisError?.message?.includes('Protocol error');
+
+      if (isEntityTooLarge) {
+        console.log(`[filePreloadWorker] ℹ️ Archivo muy grande para Redis (${fileSizeMB.toFixed(2)}MB), usando streaming`);
+      } else {
+        console.warn('[filePreloadWorker] ⚠️ Redis error (fallback a streaming):', redisError.message);
+      }
+
       // Fallback: continuar sin Redis
       currentPreload!.status = 'ready';
       self.postMessage({

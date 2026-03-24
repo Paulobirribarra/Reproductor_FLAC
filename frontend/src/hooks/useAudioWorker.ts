@@ -75,7 +75,7 @@ export const useAudioWorker = (onFileEnded?: () => void) => {
     // Definir handlers
     const handleWorkerMessage = (event: MessageEvent) => {
       recordPerformance();
-      
+
       const { type, payload } = event.data;
       const now = Date.now();
 
@@ -222,22 +222,23 @@ export const useAudioWorker = (onFileEnded?: () => void) => {
     };
   }, []);
 
-  // Función para reproducir archivo
+  // Función para reproducir archivo - versión simplificada (sin WASM)
   const handlePlayFile = (streamUrl: string) => {
-    if (audioRef.current) {
-      console.log('[useAudioWorker] Reproduciendo:', streamUrl);
-      const audio = audioRef.current;
-      audio.src = streamUrl;
-      console.log('[useAudioWorker] Audio src set, esperando metadata...');
-      audio.load();
-      console.log('[useAudioWorker] Audio load() llamado');
-      
-      setTimeout(() => {
-        audio.play().catch((error) => {
-          console.error('[useAudioWorker] Error playing audio:', error);
-        });
-      }, 100);
-    }
+    if (!audioRef.current) return;
+
+    console.log('[useAudioWorker] Reproduciendo:', streamUrl);
+    const audio = audioRef.current;
+
+    audio.src = streamUrl;
+    console.log('[useAudioWorker] Audio src set, esperando metadata...');
+    audio.load();
+    console.log('[useAudioWorker] Audio load() llamado');
+
+    setTimeout(() => {
+      audio.play().catch((error) => {
+        console.error('[useAudioWorker] Error playing audio:', error);
+      });
+    }, 100);
   };
 
   // Actualizar volumen cuando cambie en sesión

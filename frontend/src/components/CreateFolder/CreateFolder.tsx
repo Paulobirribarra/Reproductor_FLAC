@@ -13,7 +13,7 @@ export const CreateFolder: React.FC<CreateFolderProps> = ({ onFolderCreated, cur
 
   const handleCreateFolder = async () => {
     const trimmedName = folderName.trim();
-    
+
     if (!trimmedName) {
       Swal.fire({
         title: 'Error',
@@ -50,11 +50,11 @@ export const CreateFolder: React.FC<CreateFolderProps> = ({ onFolderCreated, cur
   };
 
   return (
-    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border-2 border-blue-300">
-      <label className="block text-sm font-bold text-blue-900 mb-3">
-        📁 Crear Nueva Carpeta
+    <div className="bg-zinc-800 p-4 rounded-lg border border-zinc-700 space-y-3">
+      <label className="block text-sm font-semibold text-white">
+        📁 Nombre de la carpeta
       </label>
-      
+
       <div className="flex gap-2">
         <input
           type="text"
@@ -65,14 +65,14 @@ export const CreateFolder: React.FC<CreateFolderProps> = ({ onFolderCreated, cur
               handleCreateFolder();
             }
           }}
-          placeholder="Escribe el nombre de la carpeta"
+          placeholder="Escribe el nombre..."
           disabled={isLoading}
-          className="flex-1 px-3 py-2 border-2 border-blue-300 rounded text-gray-900 placeholder-gray-500 focus:border-blue-500 focus:outline-none disabled:bg-gray-200 disabled:cursor-not-allowed font-semibold"
+          className="flex-1 px-3 py-2 bg-zinc-700 border border-zinc-600 rounded text-white placeholder-zinc-400 focus:border-blue-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-all duration-200"
         />
         <button
           onClick={handleCreateFolder}
           disabled={isLoading || !folderName.trim()}
-          className="px-6 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-bold rounded hover:from-blue-600 hover:to-indigo-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed transition-all shadow-md"
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-zinc-600 disabled:cursor-not-allowed text-white font-semibold rounded transition-all duration-200"
         >
           {isLoading ? '⏳ Creando...' : '➕ Crear'}
         </button>

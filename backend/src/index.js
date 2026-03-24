@@ -5,7 +5,9 @@ import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { FileService } from './services/fileService.js';
+import { createMetadataService } from './services/metadataService.js';
 import { createFileRoutes } from './routes/fileRoutes.js';
+import { createMetadataRoutes } from './routes/metadataRoutes.js';
 import { createPreloadRoutes } from './routes/preloadRoutes.js';
 import { getRedisService } from './services/redisService.js';
 
@@ -18,6 +20,7 @@ const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:5173';
 
 // Servicios
 const fileService = new FileService(uploadDir);
+const metadataService = createMetadataService(uploadDir);
 
 // Inicializar Redis
 const redisService = getRedisService();
@@ -47,17 +50,17 @@ const storage = multer.diskStorage({
 const fileFilter = (req, file, cb) => {
   const allowedTypes = ['audio/flac', 'audio/x-flac', 'audio/mpeg', 'audio/mp3'];
   const allowedExtensions = ['.flac', '.mp3'];
-  
+
   // Obtener extensión del archivo
   const fileName = file.originalname.toLowerCase();
   const ext = fileName.substring(fileName.lastIndexOf('.'));
-  
+
   // Validar por MIME type o extensión
   const isMimeValid = allowedTypes.includes(file.mimetype);
   const isExtValid = allowedExtensions.includes(ext);
-  
+
   console.log(`[Upload] Archivo: ${file.originalname}, MIME: ${file.mimetype}, Ext: ${ext}`);
-  
+
   if (isMimeValid || isExtValid) {
     cb(null, true);
   } else {
@@ -79,6 +82,9 @@ app.use(cors({ origin: CORS_ORIGIN }));
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 
+// Servir archivos estáticos desde la carpeta uploads
+app.use('/uploads', express.static(uploadDir));
+
 // Middleware para procesar binarios en /api/preload/cache/binary
 app.use('/api/preload/cache/binary', express.raw({ type: 'application/octet-stream', limit: '500mb' }));
 
@@ -89,6 +95,9 @@ app.get('/api/health', (req, res) => {
 
 // Rutas de archivos
 app.use('/api/files', createFileRoutes(fileService, upload));
+
+// Rutas de metadatos
+app.use('/api/metadata', createMetadataRoutes(metadataService, redisService));
 
 // Rutas de preload (caché Redis)
 app.use('/api/preload', createPreloadRoutes());
@@ -107,6 +116,6 @@ app.use((req, res) => {
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
+  console.log(` Server running on http://localhost:${PORT}`);
   console.log(`Upload directory: ${uploadDir}`);
 });

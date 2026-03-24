@@ -63,32 +63,30 @@ export const FolderBrowser: React.FC<FolderBrowserProps> = ({ onFolderNavigate }
     : [];
 
   return (
-    <div className="bg-gradient-to-r from-gray-100 to-gray-50 p-4 rounded-lg border-2 border-gray-300 mb-6">
+    <div className="bg-zinc-800 p-4 rounded-lg border border-zinc-700">
       {/* Breadcrumbs */}
-      <div className="flex items-center gap-2 mb-4 flex-wrap">
+      <div className="flex items-center gap-2 flex-wrap">
         <button
           onClick={() => handleNavigateFolder('')}
-          className={`px-3 py-1 rounded text-sm font-semibold transition-colors ${
-            currentPath === ''
-              ? 'bg-blue-500 text-white'
-              : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
-          }`}
+          className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-all duration-200 ${currentPath === ''
+              ? 'bg-blue-600 text-white'
+              : 'bg-zinc-700 text-zinc-300 hover:bg-zinc-600'
+            }`}
         >
-          📁 Inicio
+          🏠 Inicio
         </button>
 
         {breadcrumbs.map((crumb, index) => {
           const path = breadcrumbs.slice(0, index + 1).join('/');
           return (
             <React.Fragment key={path}>
-              <span className="text-gray-500">/</span>
+              <span className="text-zinc-500">/</span>
               <button
                 onClick={() => handleNavigateFolder(path)}
-                className={`px-3 py-1 rounded text-sm font-semibold transition-colors ${
-                  currentPath === path
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
-                }`}
+                className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-all duration-200 ${currentPath === path
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-zinc-700 text-zinc-300 hover:bg-zinc-600'
+                  }`}
               >
                 {crumb}
               </button>
@@ -99,7 +97,7 @@ export const FolderBrowser: React.FC<FolderBrowserProps> = ({ onFolderNavigate }
         {currentPath && (
           <button
             onClick={handleGoBack}
-            className="ml-auto px-3 py-1 bg-orange-100 text-orange-700 hover:bg-orange-200 rounded text-sm font-semibold transition-colors"
+            className="ml-auto px-3 py-1.5 bg-zinc-700 text-zinc-300 hover:bg-zinc-600 rounded-lg text-sm font-semibold transition-all duration-200"
             title="Ir a carpeta anterior"
           >
             ⬅️ Atrás
@@ -109,23 +107,23 @@ export const FolderBrowser: React.FC<FolderBrowserProps> = ({ onFolderNavigate }
 
       {/* Carpetas */}
       {folders.length > 0 && (
-        <div>
-          <h3 className="text-sm font-bold text-gray-800 mb-2">📁 Carpetas</h3>
-          <div className="grid grid-cols-1 gap-2">
+        <div className="mt-4">
+          <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">📁 Carpetas</h3>
+          <div className="space-y-2">
             {folders.map((folder: FolderInfo) => (
               <div
                 key={folder.path}
-                className="flex items-center justify-between p-2 bg-white border-2 border-gray-300 rounded hover:border-blue-400 transition-colors"
+                className="flex items-center justify-between p-3 bg-zinc-700 border border-zinc-600 rounded-lg hover:border-blue-500 hover:bg-zinc-700/50 transition-all duration-200 group"
               >
                 <button
                   onClick={() => handleNavigateFolder(folder.path)}
-                  className="flex-1 text-left text-gray-900 font-semibold hover:text-blue-600"
+                  className="flex-1 text-left text-white font-semibold group-hover:text-blue-400 transition-colors duration-200"
                 >
                   📂 {folder.name}
                 </button>
                 <button
                   onClick={() => handleDeleteFolder(folder.path, folder.name)}
-                  className="px-2 py-1 bg-red-100 text-red-700 hover:bg-red-200 rounded text-sm transition-colors"
+                  className="px-3 py-1.5 bg-red-900/20 text-red-400 hover:bg-red-900/40 rounded text-sm transition-all duration-200"
                   title="Eliminar carpeta"
                 >
                   🗑️
@@ -137,7 +135,7 @@ export const FolderBrowser: React.FC<FolderBrowserProps> = ({ onFolderNavigate }
       )}
 
       {folders.length === 0 && (
-        <p className="text-sm text-gray-600 italic">No hay carpetas en esta ubicación</p>
+        <p className="text-sm text-zinc-500 italic mt-2">No hay carpetas en esta ubicación</p>
       )}
     </div>
   );

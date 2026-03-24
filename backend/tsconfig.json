@@ -2,7 +2,9 @@
   "compilerOptions": {
     "target": "ES2020",
     "module": "commonjs",
-    "lib": ["ES2020"],
+    "lib": [
+      "ES2020"
+    ],
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
@@ -14,10 +16,14 @@
     "declarationMap": true,
     "sourceMap": true,
     "moduleResolution": "node",
-    "ignoreDeprecations": "6.0",
     "allowJs": true,
     "checkJs": false
   },
-  "include": ["src/**/*.js"],
-  "exclude": ["node_modules", "dist"]
+  "include": [
+    "src/**/*.js"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
 }

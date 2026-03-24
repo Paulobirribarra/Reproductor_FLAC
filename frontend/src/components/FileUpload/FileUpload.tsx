@@ -43,18 +43,17 @@ export const FileUpload: React.FC = () => {
   return (
     <div
       {...getRootProps()}
-      className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
-        isDragActive
-          ? 'border-blue-500 bg-blue-50'
-          : 'border-gray-300 hover:border-blue-400'
-      }`}
+      className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all duration-200 ${isDragActive
+          ? 'border-blue-500 bg-blue-500/10'
+          : 'border-zinc-700 hover:border-blue-400 bg-zinc-800/30 hover:bg-zinc-800/50'
+        }`}
     >
       <input {...getInputProps()} />
-      <div className="text-gray-600">
+      <div className="text-zinc-300">
         <p className="text-lg font-semibold">
           {isDragActive ? '📁 Suelta aquí tus archivos FLAC o MP3' : '📁 Arrastra archivos FLAC o MP3 aquí'}
         </p>
-        <p className="text-sm text-gray-400 mt-2">o haz clic para seleccionar</p>
+        <p className="text-sm text-zinc-400 mt-2">o haz clic para seleccionar</p>
       </div>
     </div>
   );

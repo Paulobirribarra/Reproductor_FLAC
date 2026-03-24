@@ -5,6 +5,7 @@ interface PlayerStore extends PlayerState {
   bufferProgress: number; // 0-100
   bufferedFile: string | null; // nombre del archivo precargado
   isBuffering: boolean;
+  albumPanelOpen: boolean;
   setCurrentFile: (file: FileInfo | null) => void;
   setIsPlaying: (isPlaying: boolean) => void;
   setCurrentTime: (time: number) => void;
@@ -12,6 +13,7 @@ interface PlayerStore extends PlayerState {
   setBufferProgress: (progress: number) => void;
   setBufferedFile: (fileName: string | null) => void;
   setIsBuffering: (buffering: boolean) => void;
+  setAlbumPanelOpen: (open: boolean) => void;
 }
 
 export const usePlayerStore = create<PlayerStore>((set) => ({
@@ -22,6 +24,7 @@ export const usePlayerStore = create<PlayerStore>((set) => ({
   bufferProgress: 0,
   bufferedFile: null,
   isBuffering: false,
+  albumPanelOpen: false,
   setCurrentFile: (file) => set({ currentFile: file }),
   setIsPlaying: (isPlaying) => set({ isPlaying }),
   setCurrentTime: (currentTime) => set({ currentTime }),
@@ -29,6 +32,7 @@ export const usePlayerStore = create<PlayerStore>((set) => ({
   setBufferProgress: (bufferProgress) => set({ bufferProgress }),
   setBufferedFile: (bufferedFile) => set({ bufferedFile }),
   setIsBuffering: (isBuffering) => set({ isBuffering }),
+  setAlbumPanelOpen: (albumPanelOpen) => set({ albumPanelOpen }),
 }));
 
 interface FilesStore {
