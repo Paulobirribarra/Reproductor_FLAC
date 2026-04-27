@@ -6,6 +6,7 @@
 
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "ignoreDeprecations": "6.0",
 
     "jsx": "react-jsx",
 
@@ -30,7 +31,7 @@
 
     "noEmit": true,
 
-    "baseUrl": ".",
+    "baseUrl": "./",
     "paths": {
       "@/*": ["src/*"],
       "@components/*": ["src/components/*"],

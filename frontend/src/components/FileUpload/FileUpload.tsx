@@ -3,7 +3,11 @@ import { useDropzone } from 'react-dropzone';
 import { filesApi } from '../../services/api';
 import { useFilesStore } from '../../store/index';
 
-export const FileUpload: React.FC = () => {
+interface FileUploadProps {
+  onUploadComplete?: () => void;
+}
+
+export const FileUpload: React.FC<FileUploadProps> = ({ onUploadComplete }) => {
   const { addFile, setError, setLoading } = useFilesStore();
   const currentPath = useFilesStore((state) => state.currentPath);
   const [uploadProgress, setUploadProgress] = React.useState(0);
@@ -26,9 +30,37 @@ export const FileUpload: React.FC = () => {
 
       for (const file of acceptedFiles) {
         try {
-          const response = await filesApi.uploadFile(file, currentPath);
+          // Obtener la ruta relativa si existe (proporcionada por react-dropzone al arrastrar carpetas)
+          const relativePath = (file as any).path || '';
+          let targetFolder = currentPath;
+
+          // Si el archivo viene de una carpeta, ajustar la carpeta de destino
+          if (relativePath && relativePath.includes('/')) {
+            const fileDir = relativePath.substring(0, relativePath.lastIndexOf('/'));
+            const cleanCurrentPath = currentPath === '/' ? '' : currentPath.replace(/\/+$/, '');
+            const cleanFileDir = fileDir.replace(/^\/+/, '');
+            targetFolder = cleanCurrentPath ? `${cleanCurrentPath}/${cleanFileDir}` : cleanFileDir;
+          }
+
+          const response = await filesApi.uploadFile(file, targetFolder);
+          
           if (response.data.success && response.data.data) {
-            addFile(response.data.data);
+            const uploadedData = response.data.data;
+            const filesToAdd = Array.isArray(uploadedData) ? uploadedData : [uploadedData];
+            
+            // Solo añadir al estado si el archivo pertenece a la carpeta que estamos viendo actualmente
+            filesToAdd.forEach(f => {
+              const fileFolderPath = f.path.includes('/') 
+                ? f.path.substring(0, f.path.lastIndexOf('/'))
+                : '';
+              
+              const normalizedCurrentPath = currentPath === '/' ? '' : currentPath.replace(/^\/|\/$/g, '');
+              const normalizedFileFolder = fileFolderPath.replace(/^\/|\/$/g, '');
+
+              if (normalizedCurrentPath === normalizedFileFolder) {
+                addFile(f);
+              }
+            });
           }
         } catch (error) {
           setError(error instanceof Error ? error.message : 'Error al subir el archivo');
@@ -37,6 +69,11 @@ export const FileUpload: React.FC = () => {
 
       setLoading(false);
       setUploadProgress(0);
+      
+      // Notificar que la subida ha terminado para refrescar la lista de carpetas/archivos
+      if (onUploadComplete) {
+        onUploadComplete();
+      }
     },
   });
 

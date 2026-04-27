@@ -4,6 +4,7 @@ import { CreateFolder } from '../CreateFolder/CreateFolder';
 
 interface ActionBarProps {
   onFolderCreated: () => void;
+  onUploadComplete?: () => void;
   onGoHome: () => void;
   onGoBack: () => void;
   currentPath: string;
@@ -12,6 +13,7 @@ interface ActionBarProps {
 
 export const ActionBar: React.FC<ActionBarProps> = ({
   onFolderCreated,
+  onUploadComplete,
   onGoHome,
   onGoBack,
   currentPath,
@@ -88,7 +90,7 @@ export const ActionBar: React.FC<ActionBarProps> = ({
               ✕
             </button>
           </div>
-          <FileUpload />
+          <FileUpload onUploadComplete={onUploadComplete} />
         </div>
       )}
 

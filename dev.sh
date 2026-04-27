@@ -29,8 +29,8 @@ npm run dev &
 FRONTEND_PID=$!
 
 echo ""
-echo "Backend PID:  $BACKEND_PID (http://localhost:3000)"
-echo "Frontend PID: $FRONTEND_PID (http://localhost:5174)"
+echo "Backend PID:  $BACKEND_PID (http://100.99.181.34:3000)"
+echo "Frontend PID: $FRONTEND_PID (http://100.99.181.34:5174)"
 echo ""
 echo "Ctrl+C para detener..."
 

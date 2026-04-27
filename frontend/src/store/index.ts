@@ -41,11 +41,13 @@ interface FilesStore {
   isLoading: boolean;
   error: string | null;
   currentPath: string;
+  searchQuery: string;
   setFiles: (files: FileInfo[]) => void;
   setFolders: (folders: any[]) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   setCurrentPath: (path: string) => void;
+  setSearchQuery: (query: string) => void;
   addFile: (file: FileInfo) => void;
   removeFile: (fileId: string) => void;
   updateFile: (fileId: string, updates: Partial<FileInfo>) => void;
@@ -57,11 +59,13 @@ export const useFilesStore = create<FilesStore>((set) => ({
   isLoading: false,
   error: null,
   currentPath: '/',
+  searchQuery: '',
   setFiles: (files) => set({ files }),
   setFolders: (folders) => set({ folders }),
   setLoading: (isLoading) => set({ isLoading }),
   setError: (error) => set({ error }),
   setCurrentPath: (currentPath) => set({ currentPath }),
+  setSearchQuery: (searchQuery) => set({ searchQuery }),
   addFile: (file) => set((state) => ({ files: [...state.files, file] })),
   removeFile: (fileId) =>
     set((state) => ({

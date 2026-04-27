@@ -94,6 +94,7 @@ function App() {
       {/* ActionBar */}
       <ActionBar
         onFolderCreated={() => loadFiles(currentPath)}
+        onUploadComplete={() => loadFiles(currentPath)}
         onGoHome={handleGoHome}
         onGoBack={handleGoBack}
         currentPath={currentPath}

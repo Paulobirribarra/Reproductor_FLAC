@@ -12,7 +12,9 @@ import { createPreloadRoutes } from './routes/preloadRoutes.js';
 import { getRedisService } from './services/redisService.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const uploadDir = path.join(__dirname, '../uploads');
+// Directorio de uploads
+// Ruta que define donde debe subir y escanear archivos de audio 
+const uploadDir = process.env.UPLOAD_DIR || path.join(__dirname, '../uploads');
 
 // Configuración
 const PORT = process.env.PORT || 5000;
