@@ -153,6 +153,10 @@ export function createFileRoutes(fileService, upload) {
       const lowerFileName = decodedFileName.toLowerCase();
       if (lowerFileName.endsWith('.mp3')) {
         contentType = 'audio/mpeg';
+      } else if (lowerFileName.endsWith('.jpg') || lowerFileName.endsWith('.jpeg')) {
+        contentType = 'image/jpeg';
+      } else if (lowerFileName.endsWith('.png')) {
+        contentType = 'image/png';
       }
 
       // Obtener información del archivo para Range Requests

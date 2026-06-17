@@ -8,6 +8,10 @@ export default defineConfig({
     host: '0.0.0.0',  // Escuchar en todas las interfaces
     port: 5174,
     strictPort: false,
+    allowedHosts: [
+      'flicker-mirach.ts.net',
+      '.ts.net' // Esto permite cualquier dominio de Tailscale
+    ],
     hmr: {
       // Para desarrollo remoto: usar la IP externa para WebSocket del cliente
       // Pero dentro del container, 0.0.0.0 para binding

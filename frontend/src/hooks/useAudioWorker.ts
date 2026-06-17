@@ -131,7 +131,7 @@ export const useAudioWorker = (onFileEnded?: () => void) => {
     };
 
     const handleCanPlayThrough = () => {
-      console.log('[useAudioWorker] Can play through');
+      //console.log('[useAudioWorker] Can play through');
       if (worker && audio.duration && !Number.isNaN(audio.duration)) {
         worker.postMessage({
           type: 'UPDATE_AUDIO_DURATION',
@@ -148,7 +148,7 @@ export const useAudioWorker = (onFileEnded?: () => void) => {
     };
 
     const handlePlay = () => {
-      console.log('[useAudioWorker] Audio play event');
+      //console.log('[useAudioWorker] Audio play event');
     };
 
     const handlePause = () => {
@@ -187,14 +187,14 @@ export const useAudioWorker = (onFileEnded?: () => void) => {
     audio.addEventListener('pause', handlePause);
     audio.addEventListener('error', handleError);
 
-    console.log('[useAudioWorker] Listeners agregados');
+    //console.log('[useAudioWorker] Listeners agregados');
 
     // Inicializar el worker (esto hará que cree el filePreloadWorker)
     worker.postMessage({ type: 'INITIALIZE' });
 
     // Cleanup - remover listeners
     return () => {
-      console.log('[useAudioWorker] Removiendo listeners');
+      //console.log('[useAudioWorker] Removiendo listeners');
       if (handlersRef.current.handleWorkerMessage) {
         worker.removeEventListener('message', handlersRef.current.handleWorkerMessage);
       }
@@ -226,13 +226,13 @@ export const useAudioWorker = (onFileEnded?: () => void) => {
   const handlePlayFile = (streamUrl: string) => {
     if (!audioRef.current) return;
 
-    console.log('[useAudioWorker] Reproduciendo:', streamUrl);
+    //console.log('[useAudioWorker] Reproduciendo:', streamUrl);
     const audio = audioRef.current;
 
     audio.src = streamUrl;
-    console.log('[useAudioWorker] Audio src set, esperando metadata...');
+    //console.log('[useAudioWorker] Audio src set, esperando metadata...');
     audio.load();
-    console.log('[useAudioWorker] Audio load() llamado');
+    //console.log('[useAudioWorker] Audio load() llamado');
 
     setTimeout(() => {
       audio.play().catch((error) => {

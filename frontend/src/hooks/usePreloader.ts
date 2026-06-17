@@ -15,7 +15,7 @@ export const usePreloader = () => {
     // El audioWorker ya está manejando filePreloadWorker
     if (bufferedFile !== file.name) {
       setBufferedFile(file.name);
-      console.log(`[usePreloader] Preload notificado para: ${file.name} (optimizado por audioWorker)`);
+      //console.log(`[usePreloader] Preload notificado para: ${file.name} (optimizado por audioWorker)`);
     }
   };
 

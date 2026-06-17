@@ -57,16 +57,18 @@ export class FileService {
       // Esto es una aproximación; idealmente usarías ffprobe
       const estimatedDurationSeconds = totalSize / 1024;
 
+      const virtualPath = chunks[0].path.replace(/_pt\d+\.flac/i, '.flac');
+
       // Crear track virtual que representa toda la obra
       groupedTracks.push({
         type: 'file',
-        id: baseName,
+        id: virtualPath,
         name: baseName + '.flac', // Mostrar como archivo completo
         originalName: baseName + '.flac',
         size: totalSize,
         duration: estimatedDurationSeconds,
         uploadedAt: chunks[0].uploadedAt,
-        path: chunks[0].path.replace(/_pt\d+\.flac/i, '.flac'), // Ruta "virtual"
+        path: virtualPath, // Ruta "virtual"
         isChunked: true,
         chunkCount: chunks.length,
         chunks: chunks.map(c => ({
@@ -109,10 +111,24 @@ export class FileService {
 
         if (item.isDirectory()) {
           console.log(`[FileService] 📁 Carpeta encontrada: ${item.name} → path: ${fullPath}`);
+          
+          // Buscar carátula rápidamente
+          let coverImage = undefined;
+          try {
+            const subItems = await fs.readdir(itemPath);
+            const coverFile = subItems.find(f => f.match(/^(cover|folder|front)\.(jpg|jpeg|png)$/i) || f.match(/\.(jpg|jpeg|png)$/i));
+            if (coverFile) {
+              coverImage = `${fullPath}/${coverFile}`;
+            }
+          } catch (e) {
+            console.error(`Error buscando carátula en ${item.name}:`, e);
+          }
+
           folders.push({
             type: 'folder',
             name: item.name,
             path: fullPath,
+            coverImage: coverImage
           });
         } else {
           try {
@@ -120,7 +136,7 @@ export class FileService {
             console.log(`[FileService]  Archivo encontrado: ${item.name} (${stats.size} bytes) → path: ${fullPath}`);
             fileInfos.push({
               type: 'file',
-              id: item.name.replace(/\.[^.]+$/, ''),
+              id: fullPath,
               name: item.name,
               originalName: item.name,
               size: stats.size,
@@ -194,12 +210,16 @@ export class FileService {
       // Renombrar
       await fs.rename(fullPath, newPath);
 
+      const newPathInLibrary = path.dirname(filePath) && path.dirname(filePath) !== '.' 
+        ? `${path.dirname(filePath).replace(/\\/g, '/')}/${newName}` 
+        : newName;
+
       return {
         success: true,
         file: {
-          id: newName.replace(/\.[^.]+$/, ''),
+          id: newPathInLibrary,
           name: newName,
-          path: path.dirname(filePath) ? `${path.dirname(filePath).replace(/\\/g, '/')}/${newName}` : newName,
+          path: newPathInLibrary,
         },
       };
     } catch (error) {
@@ -214,14 +234,15 @@ export class FileService {
       // Solo necesitamos retornar la información del archivo
       const normalizedFolder = this.normalizePath(folder);
       const relativeFolder = normalizedFolder.replace(/\\/g, '/') || '';
+      const filePath = relativeFolder ? `${relativeFolder}/${file.originalname}` : file.originalname;
 
       return {
-        id: file.originalname.replace(/\.[^.]+$/, ''),
+        id: filePath,
         name: file.originalname,
         originalName: file.originalname,
         size: file.size,
         uploadedAt: new Date().toISOString(),
-        path: relativeFolder ? `${relativeFolder}/${file.originalname}` : file.originalname,
+        path: filePath,
       };
     } catch (error) {
       console.error('Error saving file:', error);

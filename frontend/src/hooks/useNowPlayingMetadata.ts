@@ -34,7 +34,7 @@ export function useNowPlayingMetadata(): NowPlayingMetadata {
 
         const fetchMetadata = async () => {
             setMetadata({ loading: true, error: null });
-            console.log(`[useNowPlayingMetadata] Cargando: ${currentFile.name}`);
+            //console.log(`[useNowPlayingMetadata] Cargando: ${currentFile.name}`);
 
             try {
                 // Obtener URL del backend (puerto 3000)
@@ -53,7 +53,7 @@ export function useNowPlayingMetadata(): NowPlayingMetadata {
                     throw new Error(`No hay path disponible para ${currentFile.name}`);
                 }
 
-                console.log(`[useNowPlayingMetadata] URL: ${fileUrl}`);
+                //console.log(`[useNowPlayingMetadata] URL: ${fileUrl}`);
 
                 const extracted = await extractAudioMetadata(fileUrl);
 
@@ -69,14 +69,14 @@ export function useNowPlayingMetadata(): NowPlayingMetadata {
                 }
                 lastCoverUrlRef.current = extracted.cover?.url || null;
 
-                console.log(`[useNowPlayingMetadata] ✓ ${extracted.title || currentFile.name}`);
+                //console.log(`[useNowPlayingMetadata] ✓ ${extracted.title || currentFile.name}`);
             } catch (error) {
                 const errorMsg = error instanceof Error ? error.message : 'Error desconocido';
                 setMetadata({
                     loading: false,
                     error: errorMsg,
                 });
-                console.error('[useNowPlayingMetadata] Error:', errorMsg);
+                //console.error('[useNowPlayingMetadata] Error:', errorMsg);
             }
         };
 
@@ -88,7 +88,7 @@ export function useNowPlayingMetadata(): NowPlayingMetadata {
         return () => {
             if (lastCoverUrlRef.current) {
                 URL.revokeObjectURL(lastCoverUrlRef.current);
-                console.log('[useNowPlayingMetadata] Blob URL cleaned up');
+                //console.log('[useNowPlayingMetadata] Blob URL cleaned up');
             }
         };
     }, []);

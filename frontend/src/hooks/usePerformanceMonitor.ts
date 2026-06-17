@@ -18,7 +18,7 @@ export const usePerformanceMonitor = (label: string) => {
         }
         const peakMB = (peakMemoryRef.current / 1024 / 1024).toFixed(2);
 
-        console.log(`[${label}] Msgs/seg: ${messagesPerSecond.toFixed(0)}, Memory: ${memoryMB}MB (Peak: ${peakMB}MB)`);
+        //console.log(`[${label}] Msgs/seg: ${messagesPerSecond.toFixed(0)}, Memory: ${memoryMB}MB (Peak: ${peakMB}MB)`);
       }
 
       messageCountRef.current = 0;

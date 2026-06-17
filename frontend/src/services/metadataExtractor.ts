@@ -35,13 +35,13 @@ function parseID3v2(buffer: ArrayBuffer): Partial<AudioMetadata> {
 
     // Verificar ID3v2 header "ID3"
     if (view[0] === 0x49 && view[1] === 0x44 && view[2] === 0x33) {
-        console.log('[Metadata] ✓ ID3v2 header detectado');
+        //console.log('[Metadata] ✓ ID3v2 header detectado');
 
         const version = view[3];
         const flags = view[4];
         const size = ((view[6] & 0x7f) << 21) | ((view[7] & 0x7f) << 14) | ((view[8] & 0x7f) << 7) | (view[9] & 0x7f);
 
-        console.log(`[Metadata] Versión ID3v2.${version}, Flags: ${flags}, Tamaño: ${size} bytes`);
+        //console.log(`[Metadata] Versión ID3v2.${version}, Flags: ${flags}, Tamaño: ${size} bytes`);
 
         // Frames principales a extraer
         let offset = 10; // Después del header
@@ -76,7 +76,7 @@ function parseID3v2(buffer: ArrayBuffer): Partial<AudioMetadata> {
                 metadata.cover = extractAPICFrame(view, offset, frameSize);
             }
 
-            console.log(`[Metadata] Frame: ${frameID}, Size: ${frameSize}, Data: ${frameData[frameID]?.substring(0, 50) || 'binary'}`);
+            //console.log(`[Metadata] Frame: ${frameID}, Size: ${frameSize}, Data: ${frameData[frameID]?.substring(0, 50) || 'binary'}`);
 
             offset += frameSize;
         }
@@ -125,7 +125,7 @@ function extractAPICFrame(view: Uint8Array, offset: number, size: number): Audio
         // Resto es data de imagen
         const imageData = view.slice(pos, offset + size);
 
-        console.log(`[Metadata] Cover detectado: ${mimeType}, Tamaño: ${imageData.length} bytes`);
+        //console.log(`[Metadata] Cover detectado: ${mimeType}, Tamaño: ${imageData.length} bytes`);
 
         return {
             type: mimeType,
@@ -133,7 +133,7 @@ function extractAPICFrame(view: Uint8Array, offset: number, size: number): Audio
             url: createBlobURL(imageData, mimeType),
         };
     } catch (error) {
-        console.error('[Metadata] Error extrayendo cover:', error);
+        //console.error('[Metadata] Error extrayendo cover:', error);
         return {};
     }
 }
@@ -156,7 +156,7 @@ function parseFLAC(buffer: ArrayBuffer): Partial<AudioMetadata> {
         return metadata;
     }
 
-    console.log('[Metadata] ✓ FLAC header detectado');
+    //console.log('[Metadata] ✓ FLAC header detectado');
 
     let offset = 4;
     let lastBlock = false;
@@ -172,7 +172,7 @@ function parseFLAC(buffer: ArrayBuffer): Partial<AudioMetadata> {
         const blockSize = (view[offset] << 16) | (view[offset + 1] << 8) | view[offset + 2];
         offset += 3;
 
-        console.log(`[Metadata] FLAC Block Type: ${blockType}, Size: ${blockSize}`);
+        //console.log(`[Metadata] FLAC Block Type: ${blockType}, Size: ${blockSize}`);
 
         // Tipo 4 = Vorbis Comment
         if (blockType === 4) {
@@ -234,7 +234,7 @@ function parseFLACPicture(view: Uint8Array, offset: number, blockSize: number, m
                 url: createBlobURL(imageData, mimeType),
             };
 
-            console.log(`[Metadata] FLAC Picture block encontrado: ${mimeType} (${imageData.length} bytes, tipo ${pictureType})`);
+            //console.log(`[Metadata] FLAC Picture block encontrado: ${mimeType} (${imageData.length} bytes, tipo ${pictureType})`);
         }
 
         return endOffset;
@@ -264,7 +264,7 @@ function parseVorbisComments(
         const commentCount = view[pos] | (view[pos + 1] << 8) | (view[pos + 2] << 16) | (view[pos + 3] << 24);
         pos += 4;
 
-        console.log(`[Metadata] Vorbis Comments: ${commentCount} tags`);
+        //console.log(`[Metadata] Vorbis Comments: ${commentCount} tags`);
 
         const comments: Record<string, string> = {};
 
@@ -290,7 +290,7 @@ function parseVorbisComments(
         if (comments['DATE'] || comments['YEAR']) metadata.year = comments['DATE'] || comments['YEAR'];
         if (comments['GENRE']) metadata.genre = comments['GENRE'];
 
-        console.log('[Metadata] Vorbis Comments extraídos:', comments);
+        //console.log('[Metadata] Vorbis Comments extraídos:', comments);
 
         // Buscar cover artista en PICTURE block (alternativo)
         // FLAC puede tener el cover como un vorbis comment o como metadata block
@@ -320,15 +320,15 @@ function parseVorbisComments(
                     url: createBlobURL(imageData, mimeType),
                 };
 
-                console.log(`[Metadata] FLAC Cover encontrado: ${mimeType} (${imageData.length} bytes)`);
+                //console.log(`[Metadata] FLAC Cover encontrado: ${mimeType} (${imageData.length} bytes)`);
             } catch (e) {
-                console.warn('[Metadata] Error parseando FLAC picture:', e);
+                //console.warn('[Metadata] Error parseando FLAC picture:', e);
             }
         }
 
         return pos;
     } catch (error) {
-        console.error('[Metadata] Error parseando Vorbis Comments:', error);
+        //console.error('[Metadata] Error parseando Vorbis Comments:', error);
         return offset + blockSize;
     }
 }
@@ -343,22 +343,22 @@ export async function extractAudioMetadata(
 
         // Si es string (URL), hacer fetch
         if (typeof file === 'string') {
-            console.log(`[Metadata] Fetching: ${file}`);
+            //console.log(`[Metadata] Fetching: ${file}`);
             const response = await fetch(file);
 
             if (!response.ok) {
-                console.error(`[Metadata] ❌ Error HTTP ${response.status}: ${response.statusText}`);
+                //console.error(`[Metadata] ❌ Error HTTP ${response.status}: ${response.statusText}`);
                 return metadata;
             }
 
             const contentType = response.headers.get('content-type');
             if (!contentType || !contentType.includes('audio')) {
-                console.warn(`[Metadata] ⚠️ Content-Type no es audio: ${contentType}`);
+                //console.warn(`[Metadata] ⚠️ Content-Type no es audio: ${contentType}`);
             }
 
             arrayBuffer = await response.arrayBuffer();
         } else {
-            console.log(`[Metadata] Leyendo archivo: ${file.name} (${file.size} bytes)`);
+            //console.log(`[Metadata] Leyendo archivo: ${file.name} (${file.size} bytes)`);
             arrayBuffer = await file.slice(0, 100000).arrayBuffer(); // Primeros 100KB (antes: 500KB)
         }
 
@@ -373,8 +373,8 @@ export async function extractAudioMetadata(
             const id3Metadata = parseID3v2(arrayBuffer);
             Object.assign(metadata, id3Metadata);
         } else {
-            console.log('[Metadata] Formato desconocido, intentando decodificar para duración');
-            console.log(`[Metadata] Primeros bytes: ${Array.from(view.slice(0, 4)).map(b => '0x' + b.toString(16)).join(' ')}`);
+            //console.log('[Metadata] Formato desconocido, intentando decodificar para duración');
+            //console.log(`[Metadata] Primeros bytes: ${Array.from(view.slice(0, 4)).map(b => '0x' + b.toString(16)).join(' ')}`);
         }
 
         // Usar Audio API para obtener duración
@@ -383,7 +383,7 @@ export async function extractAudioMetadata(
             const decodedAudio = await audioContext.decodeAudioData(arrayBuffer.slice(0));
             metadata.duration = decodedAudio.duration;
             metadata.sampleRate = decodedAudio.sampleRate;
-            console.log(`[Metadata] Duración: ${metadata.duration.toFixed(2)}s, Sample Rate: ${metadata.sampleRate}Hz`);
+            //console.log(`[Metadata] Duración: ${metadata.duration.toFixed(2)}s, Sample Rate: ${metadata.sampleRate}Hz`);
         } catch (error) {
             console.warn('[Metadata] No se pudo decodificar audio completo:', error);
         }

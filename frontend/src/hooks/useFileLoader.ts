@@ -21,18 +21,18 @@ export const useFileLoader = () => {
 
     // Evitar recargar la misma ruta
     if (lastLoadedPathRef.current === normalizedPath) {
-      console.log(`[useFileLoader] Ruta ya cargada: ${normalizedPath}, ignorando...`);
+      //console.log(`[useFileLoader] Ruta ya cargada: ${normalizedPath}, ignorando...`);
       return;
     }
 
     try {
-      console.log(`[useFileLoader] Cargando archivos desde: "${normalizedPath || 'raíz'}"`);
+      //console.log(`[useFileLoader] Cargando archivos desde: "${normalizedPath || 'raíz'}"`);
 
       lastLoadedPathRef.current = normalizedPath;
 
       const response = await filesApi.listFiles(normalizedPath);
       if (response.data.success && response.data.data) {
-        console.log(`[useFileLoader] Respuesta recibida:`, response.data.data);
+        //console.log(`[useFileLoader] Respuesta recibida:`, response.data.data);
         setFiles(response.data.data.files);
         setFolders(response.data.data.folders || []);
         setCurrentPath(normalizedPath);
@@ -64,7 +64,7 @@ export const useFileLoader = () => {
     
     // Solo cargar si es diferente a la última ruta cargada
     if (pathFromUrl !== lastLoadedPathRef.current) {
-      console.log(`[useFileLoader] URL cambió: ${pathFromUrl}, cargando...`);
+      //console.log(`[useFileLoader] URL cambió: ${pathFromUrl}, cargando...`);
       loadFiles(pathFromUrl);
     }
   }, [location.pathname, loadFiles]);

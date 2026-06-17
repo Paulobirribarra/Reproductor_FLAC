@@ -140,7 +140,7 @@ async function handlePreloadFile(file: FileInfoPayload) {
       progress: 0,
     };
 
-    console.log(`[filePreloadWorker] Iniciando precarga: ${file.name} (${fileSizeMB.toFixed(2)}MB)`);
+    //console.log(`[filePreloadWorker] Iniciando precarga: ${file.name} (${fileSizeMB.toFixed(2)}MB)`);
 
     // =========================================
     // ESTRATEGIA: Archivos <50MB = Precarga Completa
@@ -159,7 +159,7 @@ async function handlePreloadFile(file: FileInfoPayload) {
     await preloadBurstFile(file, cacheKey, streamUrl, fileSizeBytes, fileSizeMB);
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
-      console.log('[filePreloadWorker] Precarga abortada');
+      //console.log('[filePreloadWorker] Precarga abortada');
       return;
     }
 
@@ -193,7 +193,7 @@ async function preloadSmallFile(
   fileSizeMB: number
 ) {
   try {
-    console.log(`[filePreloadWorker] Pequeño archivo: descargando completo (${fileSizeMB.toFixed(2)}MB)`);
+    //console.log(`[filePreloadWorker] Pequeño archivo: descargando completo (${fileSizeMB.toFixed(2)}MB)`);
 
     const response = await fetch(streamUrl, {
       signal: currentPreload!.abortController!.signal,
@@ -235,7 +235,7 @@ async function preloadSmallFile(
 
       currentPreload!.status = 'ready';
 
-      console.log(`[filePreloadWorker] ✓ Listo: ${file.name} (${fileSizeMB.toFixed(2)}MB en Redis)`);
+      //console.log(`[filePreloadWorker] ✓ Listo: ${file.name} (${fileSizeMB.toFixed(2)}MB en Redis)`);
 
       self.postMessage({
         type: 'PRELOAD_READY',
@@ -257,9 +257,9 @@ async function preloadSmallFile(
         redisError?.message?.includes('Protocol error');
 
       if (isEntityTooLarge) {
-        console.log(`[filePreloadWorker] ℹ️ Archivo muy grande para Redis (${fileSizeMB.toFixed(2)}MB), usando streaming`);
+        //console.log(`[filePreloadWorker] Archivo muy grande para Redis (${fileSizeMB.toFixed(2)}MB), usando streaming`);
       } else {
-        console.warn('[filePreloadWorker] ⚠️ Redis error (fallback a streaming):', redisError.message);
+        console.log('[filePreloadWorker] Redis error (fallback a streaming):', redisError.message);
       }
 
       // Fallback: continuar sin Redis
@@ -292,7 +292,7 @@ async function preloadBurstFile(
 ) {
   try {
     const burstSizeMB = BURST_SIZE_BYTES / 1024 / 1024;
-    console.log(`[filePreloadWorker] Grande archivo: burst preload (5MB + metadatos, streaming NVMe)`);
+    //console.log(`[filePreloadWorker] Grande archivo: burst preload (5MB + metadatos, streaming NVMe)`);
 
     // Descargar solo los primeros BURST_SIZE_BYTES usando Range Request
     const rangeUrl = `${streamUrl}`;
@@ -312,7 +312,7 @@ async function preloadBurstFile(
 
     // Verificar cancelación
     if (currentPreload!.abortController?.signal.aborted) {
-      console.log(`[filePreloadWorker] Cancelado: ${file.name}`);
+      //console.log(`[filePreloadWorker] Cancelado: ${file.name}`);
       return;
     }
 
@@ -342,9 +342,10 @@ async function preloadBurstFile(
 
       currentPreload!.status = 'ready';
 
-      console.log(
+      /*console.log(
         `[filePreloadWorker] ✓ Listo: ${file.name} (${fileSizeMB.toFixed(2)}MB total) - Burst: ${(burstSizeActual / 1024 / 1024).toFixed(2)}MB en Redis`
       );
+      */
 
       self.postMessage({
         type: 'PRELOAD_READY',
@@ -408,8 +409,7 @@ async function handleClearCache() {
       throw new Error(`Error HTTP: ${response.status}`);
     }
 
-    console.log('[filePreloadWorker] Caché en Redis limpiado');
-    currentPreload = null;
+   currentPreload = null;
 
     self.postMessage({
       type: 'CACHE_CLEARED',

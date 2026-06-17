@@ -32,7 +32,7 @@ let preloadWorker: Worker | null = null;
 self.onmessage = async (event: MessageEvent) => {
   const { type, payload } = event.data;
 
-  console.log(`[audioWorker] Comando recibido: ${type}`);
+  //console.log(`[audioWorker] Comando recibido: ${type}`);
 
   switch (type) {
     case 'INITIALIZE':
@@ -96,7 +96,7 @@ self.onmessage = async (event: MessageEvent) => {
 // ==================== HANDLERS ====================
 
 function handleInitialize() {
-  console.log('[audioWorker] Inicializado');
+  //console.log('[audioWorker] Inicializado');
 
   // Crear instancia del filePreloadWorker
   if (!preloadWorker) {
@@ -105,7 +105,7 @@ function handleInitialize() {
         new URL('../workers/filePreloadWorker.ts', import.meta.url),
         { type: 'module' }
       );
-      console.log('[audioWorker] filePreloadWorker creado');
+      //console.log('[audioWorker] filePreloadWorker creado');
     } catch (error) {
       console.warn('[audioWorker] No se pudo crear filePreloadWorker:', error);
     }
@@ -128,7 +128,7 @@ function handlePlay(payload: { file: any; playlist?: any[] }) {
 }
 
 function playFile(file: any) {
-  console.log(`[audioWorker] Reproduciendo: ${file.name}`);
+  //console.log(`[audioWorker] Reproduciendo: ${file.name}`);
 
   audioSession.currentFile = {
     name: file.name,
@@ -160,7 +160,7 @@ function playFile(file: any) {
   const folderQuery = folderParam ? `folder=${encodeURIComponent(folderParam)}` : '';
   const streamUrl = `/api/files/${encodeURIComponent(file.name)}/stream${folderQuery ? '?' + folderQuery : ''}`;
 
-  console.log(`[audioWorker] Stream URL: ${streamUrl}`);
+  //console.log(`[audioWorker] Stream URL: ${streamUrl}`);
 
   // Pedir al main thread que reproduzca el archivo
   self.postMessage({
@@ -175,7 +175,7 @@ function playFile(file: any) {
 }
 
 function handlePause() {
-  console.log('[audioWorker] Pausado');
+  //console.log('[audioWorker] Pausado');
   audioSession.isPlaying = false;
 
   // Pedir al main thread que pause
@@ -185,7 +185,7 @@ function handlePause() {
 }
 
 function handleSeek(time: number) {
-  console.log(`[audioWorker] Buscando a: ${time}s`);
+  //console.log(`[audioWorker] Buscando a: ${time}s`);
   audioSession.currentTime = time;
 
   // Pedir al main thread que haga seek
@@ -198,7 +198,7 @@ function handleSeek(time: number) {
 }
 
 function handleSetVolume(volume: number) {
-  console.log(`[audioWorker] Volumen: ${volume}`);
+  //console.log(`[audioWorker] Volumen: ${volume}`);
   audioSession.volume = Math.max(0, Math.min(1, volume));
 
   // Pedir al main thread que ajuste volumen
@@ -227,12 +227,12 @@ function handlePrevious() {
 }
 
 function handleSetPlaylist(playlist: any[]) {
-  console.log(`[audioWorker] Playlist actualizada: ${playlist.length} archivos`);
+  //console.log(`[audioWorker] Playlist actualizada: ${playlist.length} archivos`);
   audioSession.playlist = playlist;
 }
 
 function handleAudioEnded() {
-  console.log('[audioWorker] Archivo terminó');
+  //console.log('[audioWorker] Archivo terminó');
   audioSession.isPlaying = false;
 
   // Auto-play siguiente
@@ -277,7 +277,7 @@ function preloadNextFile() {
   }
 
   try {
-    console.log(`[audioWorker] Enviando precarga: ${nextFile.name}`);
+    //console.log(`[audioWorker] Enviando precarga: ${nextFile.name}`);
     preloadWorker.postMessage({
       type: 'PRELOAD_FILE',
       payload: {
@@ -286,6 +286,6 @@ function preloadNextFile() {
       },
     });
   } catch (error) {
-    console.warn('[audioWorker] Error mandando precarga:', error);
+    //console.warn('[audioWorker] Error mandando precarga:', error);
   }
 }

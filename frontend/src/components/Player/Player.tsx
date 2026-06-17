@@ -10,6 +10,7 @@ interface PlayerProps {
 }
 
 export const Player: React.FC<PlayerProps> = ({ file, currentPath = '', onEnded }) => {
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   const { 
     isPlaying, 
@@ -120,17 +121,39 @@ export const Player: React.FC<PlayerProps> = ({ file, currentPath = '', onEnded 
         crossOrigin="anonymous"
       />
 
-      <div className="mb-4">
-        <h3 className="text-xl font-bold truncate">{file.name}</h3>
-        <p className="text-blue-100 text-sm">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
-        {isBuffering && (
-          <p className="text-blue-200 text-xs mt-1 animate-pulse">
-            ⏳ Cargando archivo... ({Math.round(bufferProgress)}%)
-          </p>
-        )}
+      <div 
+        className={`cursor-pointer flex justify-between items-center transition-all ${isCollapsed ? '' : 'mb-4'}`}
+        onClick={() => setIsCollapsed(!isCollapsed)}
+        title={isCollapsed ? "Expandir reproductor" : "Contraer reproductor"}
+      >
+        <div className="flex-1 min-w-0 pr-4">
+          <h3 className="text-xl font-bold truncate">{file.name}</h3>
+          <p className="text-blue-100 text-sm">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+          {isBuffering && (
+            <p className="text-blue-200 text-xs mt-1 animate-pulse">
+              ⏳ Cargando archivo... ({Math.round(bufferProgress)}%)
+            </p>
+          )}
+        </div>
+        <div className="flex-shrink-0 text-blue-200 ml-2 flex items-center justify-center p-2 rounded-full hover:bg-blue-700/50 transition-colors">
+          <svg 
+            width="24" 
+            height="24" 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke="currentColor" 
+            strokeWidth="2" 
+            strokeLinecap="round" 
+            strokeLinejoin="round"
+            className={`transform transition-transform duration-200 ${isCollapsed ? 'rotate-0' : 'rotate-180'}`}
+          >
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </div>
       </div>
 
-      <div className="space-y-4">
+      {!isCollapsed && (
+        <div className="space-y-4 animate-slideUp">
         {/* Buffer indicator */}
         {isBuffering && (
           <div className="flex items-center gap-2 text-sm text-blue-100">
@@ -180,6 +203,7 @@ export const Player: React.FC<PlayerProps> = ({ file, currentPath = '', onEnded 
           {isPlaying ? '⏸ Pausar' : '▶ Reproducir'}
         </button>
       </div>
+      )}
     </div>
   );
 };

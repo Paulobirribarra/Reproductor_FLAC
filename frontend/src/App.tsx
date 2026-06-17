@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ActionBar } from './components/ActionBar/ActionBar';
 import { MainContent } from './components/MainContent/MainContent';
 import { PlayerFooter } from './components/PlayerFooter/PlayerFooter';
@@ -10,6 +10,7 @@ import { useAudioWorker } from './hooks/useAudioWorker';
 import { usePreloader } from './hooks/usePreloader';
 
 function App() {
+  const [isPlayerCollapsed, setIsPlayerCollapsed] = useState(false);
   const { files, currentPath, error, loadFiles } = useFileLoader();
   const folders = useFilesStore((state) => state.folders);
   const { sessionState, play, pause, seek, next, prev } = useAudioWorker(() => { });
@@ -116,21 +117,25 @@ function App() {
         error={error}
       />
 
-      {/* Footer - Reproductor */}
-      <PlayerFooter
-        sessionState={sessionState}
-        files={files}
-        onPlayPause={() => {
-          if (sessionState.isPlaying) pause();
-          else if (sessionState.currentFile) play(sessionState.currentFile, files);
-        }}
-        onSeek={seek}
-        onNext={next}
-        onPrev={prev}
-      />
+      {/* Footer - Reproductor y Metadatos Agrupados */}
+      <div className="flex flex-col flex-shrink-0 z-40">
+        <PlayerFooter
+          sessionState={sessionState}
+          files={files}
+          onPlayPause={() => {
+            if (sessionState.isPlaying) pause();
+            else if (sessionState.currentFile) play(sessionState.currentFile, files);
+          }}
+          onSeek={seek}
+          onNext={next}
+          onPrev={prev}
+          isCollapsed={isPlayerCollapsed}
+          onToggleCollapse={() => setIsPlayerCollapsed(!isPlayerCollapsed)}
+        />
 
-      {/* Now Playing Metadata Info */}
-      <NowPlayingMetadata />
+        {/* Now Playing Metadata Info */}
+        {!isPlayerCollapsed && <NowPlayingMetadata />}
+      </div>
 
       {/* Album Details Panel */}
       <AlbumPanel />

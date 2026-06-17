@@ -18,7 +18,21 @@ const uploadDir = process.env.UPLOAD_DIR || path.join(__dirname, '../uploads');
 
 // Configuración
 const PORT = process.env.PORT || 5000;
-const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:5173';
+
+// Lista dinámica de orígenes permitidos para CORS
+const ALLOWED_ORIGINS = [
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://100.99.181.34:5173',
+  'http://100.99.181.34:5174',
+  'http://raspi.flicker-mirach.ts.net:5173',
+  'http://raspi.flicker-mirach.ts.net:5174'
+];
+
+// Si tienes un CORS_ORIGIN específico en el .env, lo añadimos también a la lista
+if (process.env.CORS_ORIGIN && !ALLOWED_ORIGINS.includes(process.env.CORS_ORIGIN)) {
+  ALLOWED_ORIGINS.push(process.env.CORS_ORIGIN);
+}
 
 // Servicios
 const fileService = new FileService(uploadDir);
@@ -36,7 +50,7 @@ const storage = multer.diskStorage({
     const folder = req.query.folder || req.body.folder || '';
     console.log('[Multer] Destination - folder from query:', req.query.folder);
     console.log('[Multer] Destination - folder from body:', req.body.folder);
-    console.log('[Multer] Final folder:', folder);
+    console.log('[Final folder:', folder);
     // Normalizar ruta: convertir / a separador del SO
     const normalizedFolder = folder.replace(/\//g, path.sep);
     const destPath = normalizedFolder ? path.join(uploadDir, normalizedFolder) : uploadDir;
@@ -79,8 +93,21 @@ const upload = multer({
 // Crear app
 const app = express();
 
-// Middleware
-app.use(cors({ origin: CORS_ORIGIN }));
+// Middleware de CORS dinámico basado en la lista blanca
+app.use(cors({
+  origin: function (origin, callback) {
+    // Permitir peticiones sin origen (como tags nativos de audio, Postman, curl, etc.)
+    // o cualquier origen que esté en nuestra lista
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.warn(`[CORS] 🛑 Petición bloqueada desde un origen no permitido: ${origin}`);
+      callback(new Error('Bloqueado por la política de CORS del Reproductor'));
+    }
+  },
+  credentials: true
+}));
+
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 
@@ -118,6 +145,7 @@ app.use((req, res) => {
 
 // Start server
 app.listen(PORT, () => {
-  console.log(` Server running on http://localhost:${PORT}`);
-  console.log(`Upload directory: ${uploadDir}`);
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
+  console.log(`📂 Upload directory: ${uploadDir}`);
+  console.log(`🔒 Allowed CORS Origins: ${ALLOWED_ORIGINS.join(', ')}`);
 });
