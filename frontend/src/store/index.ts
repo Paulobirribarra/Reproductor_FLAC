@@ -53,6 +53,12 @@ interface FilesStore {
   updateFile: (fileId: string, updates: Partial<FileInfo>) => void;
 }
 
+const naturalSort = <T extends { name: string }>(items: T[]): T[] => {
+  return [...items].sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })
+  );
+};
+
 export const useFilesStore = create<FilesStore>((set) => ({
   files: [],
   folders: [],
@@ -60,21 +66,23 @@ export const useFilesStore = create<FilesStore>((set) => ({
   error: null,
   currentPath: '/',
   searchQuery: '',
-  setFiles: (files) => set({ files }),
-  setFolders: (folders) => set({ folders }),
+  setFiles: (files) => set({ files: naturalSort(files) }),
+  setFolders: (folders) => set({ folders: naturalSort(folders) }),
   setLoading: (isLoading) => set({ isLoading }),
   setError: (error) => set({ error }),
   setCurrentPath: (currentPath) => set({ currentPath }),
   setSearchQuery: (searchQuery) => set({ searchQuery }),
-  addFile: (file) => set((state) => ({ files: [...state.files, file] })),
+  addFile: (file) => set((state) => ({ files: naturalSort([...state.files, file]) })),
   removeFile: (fileId) =>
     set((state) => ({
       files: state.files.filter((f) => f.id !== fileId),
     })),
   updateFile: (fileId, updates) =>
     set((state) => ({
-      files: state.files.map((f) =>
-        f.id === fileId ? { ...f, ...updates } : f
+      files: naturalSort(
+        state.files.map((f) =>
+          f.id === fileId ? { ...f, ...updates } : f
+        )
       ),
     })),
 }));

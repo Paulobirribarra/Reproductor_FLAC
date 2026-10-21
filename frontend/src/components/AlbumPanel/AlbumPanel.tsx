@@ -8,8 +8,8 @@ export const AlbumPanel: React.FC = () => {
 
     if (!albumPanelOpen) return null;
 
-    // Si no hay metadatos, no mostrar el panel
-    if (!metadata.title && !metadata.artist && !metadata.album && !metadata.cover?.url) {
+    // Si no hay archivo reproduciéndose ni título, no mostrar el panel
+    if (!metadata.title && !metadata.artist && !metadata.album && !metadata.lyrics && !metadata.cover?.url) {
         return null;
     }
 
@@ -123,6 +123,34 @@ export const AlbumPanel: React.FC = () => {
                                 </div>
                             )}
                         </div>
+                    </div>
+
+                    {/* Sección de Letras (Lyrics) */}
+                    <div className="pt-4 border-t border-zinc-700 space-y-2">
+                        <div className="flex items-center justify-between">
+                            <p className="text-xs font-semibold text-zinc-400 uppercase tracking-widest flex items-center gap-1.5">
+                                <span>📜</span> Letra de la canción
+                            </p>
+                            {metadata.lyrics && (
+                                <span className="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full border border-blue-500/30">
+                                    En metadatos
+                                </span>
+                            )}
+                        </div>
+
+                        {metadata.lyrics ? (
+                            <div className="bg-zinc-800/80 rounded-lg p-4 max-h-72 overflow-y-auto border border-zinc-700/60 shadow-inner">
+                                <p className="text-sm text-zinc-200 leading-relaxed whitespace-pre-wrap font-sans select-text">
+                                    {metadata.lyrics}
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="bg-zinc-800/40 rounded-lg p-4 text-center border border-dashed border-zinc-700/60">
+                                <p className="text-xs text-zinc-500">
+                                    No se encontraron letras en los tags de esta canción
+                                </p>
+                            </div>
+                        )}
                     </div>
 
                     {/* Loading State */}

@@ -132,6 +132,9 @@ export class MetadataService {
             if (comments['ALBUM']) metadata.album = comments['ALBUM'];
             if (comments['DATE'] || comments['YEAR']) metadata.year = comments['DATE'] || comments['YEAR'];
             if (comments['GENRE']) metadata.genre = comments['GENRE'];
+            if (comments['LYRICS'] || comments['UNSYNCEDLYRICS'] || comments['UNSYNCED LYRICS']) {
+                metadata.lyrics = comments['LYRICS'] || comments['UNSYNCEDLYRICS'] || comments['UNSYNCED LYRICS'];
+            }
         } catch (error) {
             console.error('[MetadataService] Error parseando Vorbis:', error);
         }

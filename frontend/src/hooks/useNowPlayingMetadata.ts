@@ -10,6 +10,7 @@ interface NowPlayingMetadata {
     genre?: string;
     duration?: number;
     sampleRate?: number;
+    lyrics?: string;
     cover?: {
         url?: string;
         type?: string;

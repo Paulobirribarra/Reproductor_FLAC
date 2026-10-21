@@ -12,6 +12,7 @@ interface AudioMetadata {
     duration?: number;
     bitrate?: number;
     sampleRate?: number;
+    lyrics?: string;
     cover?: {
         url?: string;
         data?: Uint8Array;
@@ -72,6 +73,8 @@ function parseID3v2(buffer: ArrayBuffer): Partial<AudioMetadata> {
             } else if (frameID === 'TCON') { // Genre
                 frameData['TCON'] = extractTextFrame(view, offset, frameSize);
                 metadata.genre = frameData['TCON'];
+            } else if (frameID === 'USLT') { // Unsynchronized lyric/text
+                metadata.lyrics = extractUSLTFrame(view, offset, frameSize);
             } else if (frameID === 'APIC') { // Attached Picture (Cover)
                 metadata.cover = extractAPICFrame(view, offset, frameSize);
             }
@@ -96,11 +99,60 @@ function extractTextFrame(view: Uint8Array, offset: number, size: number): strin
             return new TextDecoder('utf-8').decode(textBytes);
         } else if (encoding === 0) { // ISO-8859-1
             return new TextDecoder('iso-8859-1').decode(textBytes);
+        } else if (encoding === 2) {
+            return new TextDecoder('utf-16be').decode(textBytes);
         } else {
             return new TextDecoder('utf-16').decode(textBytes);
         }
     } catch {
         return '[Error decodificando]';
+    }
+}
+
+/**
+ * Extrae texto de letra del frame USLT (ID3v2)
+ * Formato: <Header: 10 bytes> [Encoding: 1 byte] [Language: 3 bytes] [Content Descriptor: terminated string] [Lyrics Text: string]
+ */
+function extractUSLTFrame(view: Uint8Array, offset: number, size: number): string | undefined {
+    try {
+        if (size <= 4) return undefined;
+        const encoding = view[offset]; // 0=ISO-8859-1, 1=UTF-16 with BOM, 2=UTF-16BE, 3=UTF-8
+        let pos = offset + 1;
+
+        // Saltar 3 bytes de código de idioma (ej. 'eng')
+        pos += 3;
+
+        // Saltar descriptor (terminado en null; 2 bytes si es UTF-16, 1 byte si es latin1/utf-8)
+        if (encoding === 1 || encoding === 2) {
+            while (pos + 1 < offset + size && !(view[pos] === 0 && view[pos + 1] === 0)) {
+                pos += 2;
+            }
+            pos += 2;
+        } else {
+            while (pos < offset + size && view[pos] !== 0) {
+                pos++;
+            }
+            pos++;
+        }
+
+        if (pos >= offset + size) return undefined;
+
+        const lyricsBytes = view.slice(pos, offset + size);
+        let lyrics = '';
+        if (encoding === 3) {
+            lyrics = new TextDecoder('utf-8').decode(lyricsBytes);
+        } else if (encoding === 0) {
+            lyrics = new TextDecoder('iso-8859-1').decode(lyricsBytes);
+        } else if (encoding === 2) {
+            lyrics = new TextDecoder('utf-16be').decode(lyricsBytes);
+        } else {
+            lyrics = new TextDecoder('utf-16').decode(lyricsBytes);
+        }
+
+        return lyrics.trim() || undefined;
+    } catch (error) {
+        console.error('[Metadata] Error extrayendo frame USLT:', error);
+        return undefined;
     }
 }
 
@@ -289,6 +341,9 @@ function parseVorbisComments(
         if (comments['ALBUM']) metadata.album = comments['ALBUM'];
         if (comments['DATE'] || comments['YEAR']) metadata.year = comments['DATE'] || comments['YEAR'];
         if (comments['GENRE']) metadata.genre = comments['GENRE'];
+        if (comments['LYRICS'] || comments['UNSYNCEDLYRICS'] || comments['UNSYNCED LYRICS']) {
+            metadata.lyrics = comments['LYRICS'] || comments['UNSYNCEDLYRICS'] || comments['UNSYNCED LYRICS'];
+        }
 
         //console.log('[Metadata] Vorbis Comments extraídos:', comments);
 
@@ -344,22 +399,22 @@ export async function extractAudioMetadata(
         // Si es string (URL), hacer fetch
         if (typeof file === 'string') {
             //console.log(`[Metadata] Fetching: ${file}`);
-            const response = await fetch(file);
+            // Leer encabezado con tamaño suficiente para cubrir etiquetas ID3/Vorbis (incluyendo letras y carátula básica)
+            const response = await fetch(file, {
+                headers: { Range: 'bytes=0-300000' }
+            });
 
-            if (!response.ok) {
-                //console.error(`[Metadata] ❌ Error HTTP ${response.status}: ${response.statusText}`);
-                return metadata;
+            if (!response.ok && response.status !== 206) {
+                // Si Range no está soportado (ej. status 200 o fallback), hacer fetch estándar
+                const fullResponse = await fetch(file);
+                if (!fullResponse.ok) return metadata;
+                arrayBuffer = await fullResponse.arrayBuffer();
+            } else {
+                arrayBuffer = await response.arrayBuffer();
             }
-
-            const contentType = response.headers.get('content-type');
-            if (!contentType || !contentType.includes('audio')) {
-                //console.warn(`[Metadata] ⚠️ Content-Type no es audio: ${contentType}`);
-            }
-
-            arrayBuffer = await response.arrayBuffer();
         } else {
             //console.log(`[Metadata] Leyendo archivo: ${file.name} (${file.size} bytes)`);
-            arrayBuffer = await file.slice(0, 100000).arrayBuffer(); // Primeros 100KB (antes: 500KB)
+            arrayBuffer = await file.slice(0, 300000).arrayBuffer();
         }
 
         // Detectar formato y parsear

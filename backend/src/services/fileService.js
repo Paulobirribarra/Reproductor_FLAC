@@ -152,6 +152,11 @@ export class FileService {
       // ✨ AGRUPAR CHUNKS: Detectar archivos divididos y agruparlos
       const groupedFiles = this.groupChunkedFiles(fileInfos, folderPath);
 
+      // ✨ Ordenamiento natural numérico (para que '1. ' o '1 - ' vaya antes de '2. ' y no antes de '10. ')
+      const naturalSort = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+      groupedFiles.sort(naturalSort);
+      folders.sort(naturalSort);
+
       console.log(`[FileService] Resumen: ${groupedFiles.length} archivos (incluyendo agrupados), ${folders.length} carpetas`);
       return {
         files: groupedFiles,
