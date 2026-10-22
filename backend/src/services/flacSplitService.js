@@ -2,6 +2,7 @@ import { promises as fs } from 'fs';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import path from 'path';
+let ffmpegChecked = false;
 
 const execAsync = promisify(exec);
 
@@ -71,8 +72,10 @@ export class FlacSplitService {
     }
 
     async checkFfmpegAvailable() {
+        if (ffmpegChecked) return;
         try {
             await execAsync('ffmpeg -version', { timeout: 5000 });
+            ffmpegChecked = true;
         } catch (error) {
             throw new Error('ffmpeg not installed');
         }

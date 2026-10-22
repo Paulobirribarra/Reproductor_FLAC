@@ -40,13 +40,13 @@ export const useFileLoader = () => {
         // Limpiar búsqueda al cambiar de carpeta
         setSearchQuery('');
 
-        // Solo navegar si la URL actual es diferente
+        // Solo navegar si la URL actual es diferente (usando push en lugar de replace para conservar el historial)
         const expectedPathname = normalizedPath 
           ? `/folder/${encodeURIComponent(normalizedPath)}`
           : '/';
 
         if (location.pathname !== expectedPathname) {
-          navigate(expectedPathname, { replace: true });
+          navigate(expectedPathname);
         }
       }
     } catch (error) {

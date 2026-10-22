@@ -9,7 +9,9 @@ import { createMetadataService } from './services/metadataService.js';
 import { createFileRoutes } from './routes/fileRoutes.js';
 import { createMetadataRoutes } from './routes/metadataRoutes.js';
 import { createPreloadRoutes } from './routes/preloadRoutes.js';
+import { createLastFmRoutes } from './routes/lastfmRoutes.js';
 import { getRedisService } from './services/redisService.js';
+import { LastFmService } from './services/lastfmService.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Directorio de uploads
@@ -34,15 +36,16 @@ if (process.env.CORS_ORIGIN && !ALLOWED_ORIGINS.includes(process.env.CORS_ORIGIN
   ALLOWED_ORIGINS.push(process.env.CORS_ORIGIN);
 }
 
-// Servicios
-const fileService = new FileService(uploadDir);
-const metadataService = createMetadataService(uploadDir);
-
 // Inicializar Redis
 const redisService = getRedisService();
 await redisService.connect().catch((err) => {
   console.warn('⚠️  Redis no disponible, caché de preload deshabilitado:', err.message);
 });
+
+// Servicios
+const fileService = new FileService(uploadDir);
+const metadataService = createMetadataService(uploadDir);
+const lastFmService = new LastFmService(redisService);
 
 // Configurar multer
 const storage = multer.diskStorage({
@@ -130,6 +133,9 @@ app.use('/api/metadata', createMetadataRoutes(metadataService, redisService));
 
 // Rutas de preload (caché Redis)
 app.use('/api/preload', createPreloadRoutes());
+
+// Rutas de Last.fm
+app.use('/api/lastfm', createLastFmRoutes(lastFmService));
 
 // Error handler
 app.use((err, req, res, next) => {

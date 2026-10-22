@@ -2,9 +2,24 @@ import React from 'react';
 import { useNowPlayingMetadata } from '../hooks/useNowPlayingMetadata';
 import { usePlayerStore } from '../store/index';
 
-export const NowPlayingMetadata: React.FC = () => {
+interface NowPlayingMetadataProps {
+    onNavigateFolder?: (folderPath: string) => void;
+    fallbackDuration?: number;
+}
+
+const formatDuration = (seconds?: number): string => {
+    if (!seconds || !Number.isFinite(seconds) || seconds <= 0) return '';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+};
+
+export const NowPlayingMetadata: React.FC<NowPlayingMetadataProps> = ({
+    onNavigateFolder,
+    fallbackDuration,
+}) => {
     const metadata = useNowPlayingMetadata();
-    const { setAlbumPanelOpen } = usePlayerStore();
+    const { currentFile, setAlbumPanelOpen } = usePlayerStore();
 
     if (!metadata.title && !metadata.artist && !metadata.album) {
         return null;
@@ -13,6 +28,55 @@ export const NowPlayingMetadata: React.FC = () => {
     const handleCoverClick = () => {
         setAlbumPanelOpen(true);
     };
+
+    // Calcular ruta de la carpeta del álbum y del artista a partir del archivo actual
+    const getFolderPaths = () => {
+        const fullPath = currentFile?.path || (currentFile?.folder ? `${currentFile.folder}/${currentFile.name}` : '');
+        if (!fullPath) return { albumFolder: '', artistFolder: '' };
+
+        const parts = fullPath.split('/').filter(Boolean);
+        if (parts.length <= 1) {
+            // El archivo está en la raíz
+            return { albumFolder: '', artistFolder: '' };
+        }
+
+        // parts = ['Elend', '2007 - A World In Their Screams', '1. Ophis Puthon.flac']
+        // albumFolder = 'Elend/2007 - A World In Their Screams'
+        const albumParts = parts.slice(0, -1);
+        const albumFolder = albumParts.join('/');
+
+        // artistFolder: si tiene 2 o más niveles de carpetas, el primer nivel es el artista
+        const artistFolder = albumParts.length > 1 ? albumParts.slice(0, -1).join('/') : albumFolder;
+
+        return { albumFolder, artistFolder };
+    };
+
+    const handleArtistClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        const { artistFolder, albumFolder } = getFolderPaths();
+        const target = artistFolder || albumFolder;
+        if (onNavigateFolder) {
+            onNavigateFolder(target);
+        }
+    };
+
+    const handleAlbumClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        const { albumFolder } = getFolderPaths();
+        if (onNavigateFolder) {
+            onNavigateFolder(albumFolder);
+        }
+    };
+
+    // Priorizar duración: si metadata tiene duración válida (FLAC header), usarla. Si no, usar la duración real del reproductor
+    const displayDuration = (metadata.duration && metadata.duration > 1)
+        ? metadata.duration
+        : (fallbackDuration && fallbackDuration > 1 ? fallbackDuration : undefined);
+
+    const formattedDuration = formatDuration(displayDuration);
+
+    const { albumFolder, artistFolder } = getFolderPaths();
+    const canNavigate = Boolean(albumFolder || artistFolder);
 
     return (
         <div className="flex gap-4 items-center px-6 py-3 bg-zinc-800 border-t border-zinc-700 text-zinc-100">
@@ -42,18 +106,48 @@ export const NowPlayingMetadata: React.FC = () => {
             {/* Metadata Text */}
             <div className="flex-1 min-w-0">
                 <div className="font-bold text-sm text-white truncate">
-                    {metadata.title || '(sin título)'}
+                    {metadata.title || currentFile?.name || '(sin título)'}
                 </div>
 
                 {metadata.artist && (
-                    <div className="text-xs text-zinc-400 truncate">
-                        🎤 {metadata.artist}
+                    <div className="text-xs text-zinc-400 truncate mt-0.5">
+                        <button
+                            onClick={handleArtistClick}
+                            className={`inline-flex items-center gap-1 text-left transition-colors ${
+                                canNavigate
+                                    ? 'hover:text-blue-400 hover:underline cursor-pointer group'
+                                    : 'cursor-default'
+                            }`}
+                            title={canNavigate ? 'Clic para ir a la carpeta del artista' : undefined}
+                        >
+                            <span>🎤 {metadata.artist}</span>
+                            {canNavigate && (
+                                <span className="opacity-0 group-hover:opacity-100 text-[10px] text-blue-400">
+                                    ↗
+                                </span>
+                            )}
+                        </button>
                     </div>
                 )}
 
                 {metadata.album && (
-                    <div className="text-xs text-zinc-400 truncate">
-                        💿 {metadata.album}
+                    <div className="text-xs text-zinc-400 truncate mt-0.5">
+                        <button
+                            onClick={handleAlbumClick}
+                            className={`inline-flex items-center gap-1 text-left transition-colors ${
+                                canNavigate
+                                    ? 'hover:text-blue-400 hover:underline cursor-pointer group'
+                                    : 'cursor-default'
+                            }`}
+                            title={canNavigate ? 'Clic para ir a la carpeta del álbum' : undefined}
+                        >
+                            <span>💿 {metadata.album}</span>
+                            {canNavigate && (
+                                <span className="opacity-0 group-hover:opacity-100 text-[10px] text-blue-400">
+                                    ↗
+                                </span>
+                            )}
+                        </button>
                     </div>
                 )}
 
@@ -61,7 +155,7 @@ export const NowPlayingMetadata: React.FC = () => {
                 <div className="text-xs text-zinc-500 mt-1 flex flex-wrap items-center gap-3">
                     {metadata.year && <span>📅 {metadata.year}</span>}
                     {metadata.genre && <span>🎵 {metadata.genre}</span>}
-                    {metadata.duration && <span>⏱️ {(metadata.duration / 60).toFixed(2)}m</span>}
+                    {formattedDuration && <span>⏱️ {formattedDuration}</span>}
                     {metadata.sampleRate && <span>🔊 {(metadata.sampleRate / 1000).toFixed(0)}kHz</span>}
                 </div>
             </div>

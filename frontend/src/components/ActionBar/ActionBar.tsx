@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { FileUpload } from '../FileUpload/FileUpload';
 import { CreateFolder } from '../CreateFolder/CreateFolder';
+import { LastFmWidget } from '../LastFm/LastFmWidget';
 
 interface ActionBarProps {
   onFolderCreated: () => void;
@@ -56,7 +57,9 @@ export const ActionBar: React.FC<ActionBarProps> = ({
         </div>
 
         {/* Action buttons */}
-        <div className="flex gap-2">
+        <div className="flex items-center gap-3">
+          <LastFmWidget />
+
           <button
             onClick={() => setShowUpload(!showUpload)}
             className="px-3 py-2 bg-blue-600 text-white rounded-lg font-semibold text-sm transition-all duration-200 hover:bg-blue-700"

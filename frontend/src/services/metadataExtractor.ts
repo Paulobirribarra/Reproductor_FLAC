@@ -423,24 +423,27 @@ export async function extractAudioMetadata(
             // FLAC
             const flacMetadata = parseFLAC(arrayBuffer);
             Object.assign(metadata, flacMetadata);
+
+            // Extraer duración exacta desde STREAMINFO (bloque 0)
+            if (view.length >= 26) {
+                // FLAC streaminfo offset = 4 (header) + 4 (block header) = 8
+                const b0 = view[18], b1 = view[19], b2 = view[20];
+                const sampleRate = (b0 << 12) | (b1 << 4) | (b2 >> 4);
+                const top4 = view[21] & 0x0F;
+                const low32 = (view[22] << 24) | (view[23] << 16) | (view[24] << 8) | view[25];
+                const totalSamples = (top4 * 0x100000000) + (low32 >>> 0);
+
+                if (sampleRate > 0 && totalSamples > 0) {
+                    metadata.duration = totalSamples / sampleRate;
+                    metadata.sampleRate = sampleRate;
+                }
+            }
         } else if (view[0] === 0x49 && view[1] === 0x44 && view[2] === 0x33) {
             // ID3v2 (MP3)
             const id3Metadata = parseID3v2(arrayBuffer);
             Object.assign(metadata, id3Metadata);
         } else {
-            //console.log('[Metadata] Formato desconocido, intentando decodificar para duración');
-            //console.log(`[Metadata] Primeros bytes: ${Array.from(view.slice(0, 4)).map(b => '0x' + b.toString(16)).join(' ')}`);
-        }
-
-        // Usar Audio API para obtener duración
-        try {
-            const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-            const decodedAudio = await audioContext.decodeAudioData(arrayBuffer.slice(0));
-            metadata.duration = decodedAudio.duration;
-            metadata.sampleRate = decodedAudio.sampleRate;
-            //console.log(`[Metadata] Duración: ${metadata.duration.toFixed(2)}s, Sample Rate: ${metadata.sampleRate}Hz`);
-        } catch (error) {
-            console.warn('[Metadata] No se pudo decodificar audio completo:', error);
+            //console.log('[Metadata] Formato desconocido');
         }
 
     } catch (error) {

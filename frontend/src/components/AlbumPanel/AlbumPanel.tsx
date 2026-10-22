@@ -105,7 +105,7 @@ export const AlbumPanel: React.FC = () => {
                                 </div>
                             )}
 
-                            {metadata.duration && (
+                            {metadata.duration && metadata.duration > 1 && (
                                 <div className="space-y-1">
                                     <p className="text-xs font-semibold text-zinc-400 uppercase">Duración</p>
                                     <p className="text-sm text-zinc-200">

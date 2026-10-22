@@ -8,6 +8,7 @@ import { usePlayerStore, useFilesStore } from './store/index';
 import { useFileLoader } from './hooks/useFileLoader';
 import { useAudioWorker } from './hooks/useAudioWorker';
 import { usePreloader } from './hooks/usePreloader';
+import { useLastFmScrobbler } from './hooks/useLastFmScrobbler';
 
 function App() {
   const [isPlayerCollapsed, setIsPlayerCollapsed] = useState(false);
@@ -17,6 +18,20 @@ function App() {
   const { setCurrentFile } = usePlayerStore();
   const { preloadNextFile } = usePreloader();
   const currentFile = usePlayerStore((state) => state.currentFile);
+
+  // Mantener sincronizado currentFile de usePlayerStore con sessionState del audioWorker
+  useEffect(() => {
+    if (sessionState.currentFile) {
+      const workerFile = sessionState.currentFile;
+      // Solo actualizar si es diferente al que tiene usePlayerStore
+      if (!currentFile || (currentFile.path !== workerFile.path && currentFile.name !== workerFile.name)) {
+        setCurrentFile(workerFile);
+      }
+    }
+  }, [sessionState.currentFile, currentFile, setCurrentFile]);
+
+  // Sincronización automática de Now Playing y Scrobbles con Last.fm
+  useLastFmScrobbler(sessionState);
 
   // Precargar siguiente archivo cuando cambia el actual
   useEffect(() => {
@@ -134,7 +149,12 @@ function App() {
         />
 
         {/* Now Playing Metadata Info */}
-        {!isPlayerCollapsed && <NowPlayingMetadata />}
+        {!isPlayerCollapsed && (
+          <NowPlayingMetadata
+            onNavigateFolder={handleFolderClick}
+            fallbackDuration={sessionState.duration}
+          />
+        )}
       </div>
 
       {/* Album Details Panel */}

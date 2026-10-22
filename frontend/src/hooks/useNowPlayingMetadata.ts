@@ -82,7 +82,7 @@ export function useNowPlayingMetadata(): NowPlayingMetadata {
         };
 
         fetchMetadata();
-    }, [currentFile?.id]);
+    }, [currentFile?.id, currentFile?.path, currentFile?.name]);
 
     // Cleanup en unmount
     useEffect(() => {
