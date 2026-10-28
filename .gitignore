@@ -13,6 +13,7 @@ backend/dist/
 # Uploads and temporary files
 backend/uploads/
 backend/temp/
+backend/data/
 *.log
 npm-debug.log*
 yarn-debug.log*

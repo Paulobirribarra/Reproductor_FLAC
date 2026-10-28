@@ -14,6 +14,7 @@ interface PlayerFooterProps {
   sessionState: SessionState;
   files: any[];
   onPlayPause: () => void;
+  onStop?: () => void;
   onSeek: (time: number) => void;
   onNext: () => void;
   onPrev: () => void;
@@ -32,6 +33,7 @@ export const PlayerFooter: React.FC<PlayerFooterProps> = ({
   sessionState,
   files,
   onPlayPause,
+  onStop,
   onSeek,
   onNext,
   onPrev,
@@ -118,12 +120,23 @@ export const PlayerFooter: React.FC<PlayerFooterProps> = ({
             <button
               onClick={onPlayPause}
               className={`px-6 py-2 rounded-lg font-semibold transition-all duration-200 ${sessionState.isPlaying
-                  ? 'bg-red-600 hover:bg-red-700 text-white'
+                  ? 'bg-amber-600 hover:bg-amber-700 text-white'
                   : 'bg-blue-600 hover:bg-blue-700 text-white'
                 }`}
             >
               {sessionState.isPlaying ? '⏸ Pausar' : '▶ Reproducir'}
             </button>
+
+            {onStop && (
+              <button
+                onClick={onStop}
+                className="px-4 py-2 bg-zinc-800 hover:bg-red-600/80 text-zinc-300 hover:text-white rounded-lg font-semibold transition-all duration-200 flex items-center gap-1.5"
+                title="Detener"
+              >
+                <span>⏹</span>
+                <span className="text-sm">Detener</span>
+              </button>
+            )}
 
             <button
               onClick={onNext}

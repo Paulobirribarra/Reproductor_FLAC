@@ -24,12 +24,16 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onUploadComplete }) => {
       'audio/x-flac': ['.flac'],
       'audio/mpeg': ['.mp3'],
       'audio/mp3': ['.mp3'],
+      'audio/wav': ['.wav'],
       'image/jpeg': ['.jpg', '.jpeg'],
       'image/png': ['.png'],
+      'image/webp': ['.webp'],
+      'application/x-cue': ['.cue'],
+      'text/plain': ['.cue'],
     },
     onDrop: async (acceptedFiles) => {
       if (acceptedFiles.length === 0) {
-        setError('No se seleccionaron archivos compatibles (FLAC, MP3, JPG, PNG)');
+        setError('No se seleccionaron archivos compatibles (FLAC, MP3, WAV, JPG, PNG, CUE)');
         return;
       }
 

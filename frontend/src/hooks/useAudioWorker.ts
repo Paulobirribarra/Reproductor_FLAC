@@ -100,6 +100,17 @@ export const useAudioWorker = (onFileEnded?: () => void) => {
         if (audio) {
           audio.pause();
         }
+      } else if (type === 'RESUME_AUDIO') {
+        if (audio) {
+          audio.play().catch((error) => {
+            console.error('[useAudioWorker] Error reanudando audio:', error);
+          });
+        }
+      } else if (type === 'STOP_AUDIO') {
+        if (audio) {
+          audio.pause();
+          audio.currentTime = 0;
+        }
       } else if (type === 'SEEK_AUDIO') {
         if (audio) {
           audio.currentTime = payload.time;
@@ -264,6 +275,18 @@ export const useAudioWorker = (onFileEnded?: () => void) => {
     }
   }, []);
 
+  const resume = useCallback(() => {
+    if (workerRef.current) {
+      workerRef.current.postMessage({ type: 'RESUME' });
+    }
+  }, []);
+
+  const stop = useCallback(() => {
+    if (workerRef.current) {
+      workerRef.current.postMessage({ type: 'STOP' });
+    }
+  }, []);
+
   const seek = useCallback((time: number) => {
     if (workerRef.current) {
       workerRef.current.postMessage({
@@ -313,6 +336,8 @@ export const useAudioWorker = (onFileEnded?: () => void) => {
     sessionState,
     play,
     pause,
+    resume,
+    stop,
     seek,
     setVolume,
     next,

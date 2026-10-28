@@ -10,8 +10,10 @@ import { createFileRoutes } from './routes/fileRoutes.js';
 import { createMetadataRoutes } from './routes/metadataRoutes.js';
 import { createPreloadRoutes } from './routes/preloadRoutes.js';
 import { createLastFmRoutes } from './routes/lastfmRoutes.js';
+import { createPlaylistRoutes } from './routes/playlistRoutes.js';
 import { getRedisService } from './services/redisService.js';
 import { LastFmService } from './services/lastfmService.js';
+import { PlaylistService } from './services/playlistService.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Directorio de uploads
@@ -46,6 +48,7 @@ await redisService.connect().catch((err) => {
 const fileService = new FileService(uploadDir);
 const metadataService = createMetadataService(uploadDir);
 const lastFmService = new LastFmService(redisService);
+const playlistService = new PlaylistService(path.join(__dirname, '../data'));
 
 // Configurar multer
 const storage = multer.diskStorage({
@@ -67,8 +70,12 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
-  const allowedTypes = ['audio/flac', 'audio/x-flac', 'audio/mpeg', 'audio/mp3'];
-  const allowedExtensions = ['.flac', '.mp3'];
+  const allowedTypes = [
+    'audio/flac', 'audio/x-flac', 'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/x-wav',
+    'image/jpeg', 'image/jpg', 'image/png', 'image/webp',
+    'application/x-cue', 'text/plain'
+  ];
+  const allowedExtensions = ['.flac', '.mp3', '.wav', '.jpg', '.jpeg', '.png', '.webp', '.cue'];
 
   // Obtener extensión del archivo
   const fileName = file.originalname.toLowerCase();
@@ -83,7 +90,7 @@ const fileFilter = (req, file, cb) => {
   if (isMimeValid || isExtValid) {
     cb(null, true);
   } else {
-    cb(new Error(`Solo se permiten archivos FLAC y MP3 (recibido: ${file.mimetype})`));
+    cb(new Error(`Tipo de archivo no permitido (recibido: ${file.mimetype}, extensión: ${ext})`));
   }
 };
 
@@ -111,8 +118,8 @@ app.use(cors({
   credentials: true
 }));
 
-app.use(express.json({ limit: '100mb' }));
-app.use(express.urlencoded({ extended: true, limit: '100mb' }));
+app.use(express.json({ limit: '200mb' }));
+app.use(express.urlencoded({ extended: true, limit: '200mb' }));
 
 // Servir archivos estáticos desde la carpeta uploads
 app.use('/uploads', express.static(uploadDir));
@@ -136,6 +143,9 @@ app.use('/api/preload', createPreloadRoutes());
 
 // Rutas de Last.fm
 app.use('/api/lastfm', createLastFmRoutes(lastFmService));
+
+// Rutas de Playlists
+app.use('/api/playlists', createPlaylistRoutes(playlistService));
 
 // Error handler
 app.use((err, req, res, next) => {

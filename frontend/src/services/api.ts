@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { FileInfo, ApiResponse } from '../types/index';
+import type { FileInfo, ApiResponse, Playlist, PlaylistTrack } from '../types/index';
 
 const api = axios.create({
   baseURL: '/api',
@@ -113,5 +113,35 @@ export const lastFmApi = {
 
   scrobble: (payload: { artist: string; track: string; album?: string; timestamp: number }) => {
     return api.post<{ success?: boolean; skipped?: boolean }>('/lastfm/scrobble', payload);
+  },
+};
+
+export const playlistApi = {
+  getAll: () => {
+    return api.get<ApiResponse<Playlist[]>>('/playlists');
+  },
+
+  getById: (id: string) => {
+    return api.get<ApiResponse<Playlist>>(`/playlists/${id}`);
+  },
+
+  create: (name: string, description?: string) => {
+    return api.post<ApiResponse<Playlist>>('/playlists', { name, description });
+  },
+
+  update: (id: string, data: { name?: string; description?: string; tracks?: PlaylistTrack[] }) => {
+    return api.put<ApiResponse<Playlist>>(`/playlists/${id}`, data);
+  },
+
+  delete: (id: string) => {
+    return api.delete<ApiResponse>(`/playlists/${id}`);
+  },
+
+  addTracks: (id: string, tracks: Array<{ id?: string; name: string; path?: string; size?: number; folder?: string }>) => {
+    return api.post<ApiResponse<Playlist>>(`/playlists/${id}/tracks`, { tracks });
+  },
+
+  removeTrack: (id: string, trackId: string) => {
+    return api.delete<ApiResponse<Playlist>>(`/playlists/${id}/tracks/${encodeURIComponent(trackId)}`);
   },
 };

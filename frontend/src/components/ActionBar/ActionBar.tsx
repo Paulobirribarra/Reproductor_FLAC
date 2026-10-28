@@ -8,6 +8,7 @@ interface ActionBarProps {
   onUploadComplete?: () => void;
   onGoHome: () => void;
   onGoBack: () => void;
+  onOpenPlaylists?: () => void;
   currentPath: string;
   canGoBack?: boolean;
 }
@@ -17,6 +18,7 @@ export const ActionBar: React.FC<ActionBarProps> = ({
   onUploadComplete,
   onGoHome,
   onGoBack,
+  onOpenPlaylists,
   currentPath,
   canGoBack = false
 }) => {
@@ -59,6 +61,16 @@ export const ActionBar: React.FC<ActionBarProps> = ({
         {/* Action buttons */}
         <div className="flex items-center gap-3">
           <LastFmWidget />
+
+          {onOpenPlaylists && (
+            <button
+              onClick={onOpenPlaylists}
+              className="px-3 py-2 bg-purple-600 text-white rounded-lg font-semibold text-sm transition-all duration-200 hover:bg-purple-700 flex items-center gap-1.5 shadow-sm"
+              title="Ver y gestionar listas de reproducción"
+            >
+              <span>📋</span> Listas
+            </button>
+          )}
 
           <button
             onClick={() => setShowUpload(!showUpload)}

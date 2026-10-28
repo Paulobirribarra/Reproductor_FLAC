@@ -16,6 +16,7 @@ interface MainContentProps {
   onPlay: (file: FileInfo) => void;
   onFolderClick?: (folderPath: string) => void;
   onFileUpdated: () => void;
+  onAddToPlaylist?: (file: FileInfo) => void;
   error?: string | null;
 }
 
@@ -25,6 +26,7 @@ export const MainContent: React.FC<MainContentProps> = ({
   onPlay,
   onFolderClick,
   onFileUpdated,
+  onAddToPlaylist,
   error
 }) => {
   const currentPath = useFilesStore((state) => state.currentPath);
@@ -174,8 +176,8 @@ export const MainContent: React.FC<MainContentProps> = ({
 
         {/* Search Input & Action Buttons */}
         <div className="flex flex-wrap items-center gap-3">
-          {/* Botón de descargar carpeta actual en ZIP si no está vacía */}
-          {files.length > 0 && (
+          {/* Botón de descargar carpeta actual en ZIP solo dentro de subcarpetas (no en raíz) */}
+          {currentPath && files.length > 0 && (
             <button
               onClick={() => handleDownloadFolder(currentPath, currentPath.split('/').pop() || 'Biblioteca')}
               className="px-3.5 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 hover:text-blue-300 border border-blue-500/40 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-sm"
@@ -335,6 +337,18 @@ export const MainContent: React.FC<MainContentProps> = ({
 
                     {/* Botones de acción por archivo */}
                     <div className="flex items-center gap-1.5 flex-shrink-0">
+                      {onAddToPlaylist && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onAddToPlaylist(file);
+                          }}
+                          className="p-1.5 rounded-md bg-zinc-800 hover:bg-purple-950/40 text-zinc-300 hover:text-purple-400 border border-zinc-700 hover:border-purple-800/60 transition-colors"
+                          title="Añadir a lista de reproducción"
+                        >
+                          ➕📋
+                        </button>
+                      )}
                       <button
                         onClick={(e) => handleDownloadFile(e, file)}
                         className="p-1.5 rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-blue-400 border border-zinc-700 transition-colors"

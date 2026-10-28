@@ -46,13 +46,22 @@ export function useNowPlayingMetadata(): NowPlayingMetadata {
                 let fileUrl: string;
 
                 // Si tiene path, usarlo; si no, construir desde folder + name
+                let relativePath: string;
                 if (currentFile.path) {
-                    fileUrl = `${backendUrl}/uploads/${currentFile.path}`;
+                    relativePath = currentFile.path;
                 } else if (currentFile.folder && currentFile.name) {
-                    fileUrl = `${backendUrl}/uploads/${currentFile.folder}/${currentFile.name}`;
+                    relativePath = `${currentFile.folder}/${currentFile.name}`;
                 } else {
                     throw new Error(`No hay path disponible para ${currentFile.name}`);
                 }
+
+                // Codificar cada segmento de la ruta individualmente para preservar los '/'
+                const encodedPath = relativePath
+                    .split('/')
+                    .map((segment) => encodeURIComponent(segment))
+                    .join('/');
+
+                fileUrl = `${backendUrl}/uploads/${encodedPath}`;
 
                 //console.log(`[useNowPlayingMetadata] URL: ${fileUrl}`);
 

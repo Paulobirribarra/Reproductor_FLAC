@@ -4,6 +4,8 @@ import { MainContent } from './components/MainContent/MainContent';
 import { PlayerFooter } from './components/PlayerFooter/PlayerFooter';
 import { NowPlayingMetadata } from './components/NowPlayingMetadata';
 import { AlbumPanel } from './components/AlbumPanel/AlbumPanel';
+import { PlaylistModal } from './components/Playlist/PlaylistModal';
+import { AddToPlaylistModal } from './components/Playlist/AddToPlaylistModal';
 import { usePlayerStore, useFilesStore } from './store/index';
 import { useFileLoader } from './hooks/useFileLoader';
 import { useAudioWorker } from './hooks/useAudioWorker';
@@ -12,9 +14,11 @@ import { useLastFmScrobbler } from './hooks/useLastFmScrobbler';
 
 function App() {
   const [isPlayerCollapsed, setIsPlayerCollapsed] = useState(false);
+  const [isPlaylistModalOpen, setIsPlaylistModalOpen] = useState(false);
+  const [fileToAddToPlaylist, setFileToAddToPlaylist] = useState<any>(null);
   const { files, currentPath, error, loadFiles } = useFileLoader();
   const folders = useFilesStore((state) => state.folders);
-  const { sessionState, play, pause, seek, next, prev } = useAudioWorker(() => { });
+  const { sessionState, play, pause, resume, stop, seek, next, prev } = useAudioWorker(() => { });
   const { setCurrentFile } = usePlayerStore();
   const { preloadNextFile } = usePreloader();
   const currentFile = usePlayerStore((state) => state.currentFile);
@@ -41,9 +45,13 @@ function App() {
   }, [currentFile, files, currentPath, preloadNextFile]);
 
   const handlePlay = (file: any) => {
+    // Filtrar la playlist para que contenga ÚNICAMENTE archivos de audio (evitar .jpg, .cue, etc.)
+    const isAudio = (name: string) => /\.(flac|mp3|wav|ogg|m4a|ape|wv|wma)$/i.test(name);
+    const audioPlaylist = files.filter(f => isAudio(f.name));
+
     // ✨ Si es un track chunked, expandir a lista automáticamente
     let playFile = file;
-    let playPlaylist = files;
+    let playPlaylist = audioPlaylist;
 
     if (file.isChunked && file.chunks && file.chunks.length > 0) {
       console.log(`[App] 🎵 Track chunked detectado: ${file.name}`);
@@ -113,6 +121,7 @@ function App() {
         onUploadComplete={() => loadFiles(currentPath)}
         onGoHome={handleGoHome}
         onGoBack={handleGoBack}
+        onOpenPlaylists={() => setIsPlaylistModalOpen(true)}
         currentPath={currentPath}
         canGoBack={!!currentPath}
       />
@@ -129,6 +138,7 @@ function App() {
         onPlay={handlePlay}
         onFolderClick={handleFolderClick}
         onFileUpdated={() => loadFiles(currentPath)}
+        onAddToPlaylist={(file) => setFileToAddToPlaylist(file)}
         error={error}
       />
 
@@ -138,9 +148,13 @@ function App() {
           sessionState={sessionState}
           files={files}
           onPlayPause={() => {
-            if (sessionState.isPlaying) pause();
-            else if (sessionState.currentFile) play(sessionState.currentFile, files);
+            if (sessionState.isPlaying) {
+              pause();
+            } else if (sessionState.currentFile) {
+              resume();
+            }
           }}
+          onStop={stop}
           onSeek={seek}
           onNext={next}
           onPrev={prev}
@@ -159,6 +173,24 @@ function App() {
 
       {/* Album Details Panel */}
       <AlbumPanel />
+
+      {/* Playlists Management Modal */}
+      <PlaylistModal
+        isOpen={isPlaylistModalOpen}
+        onClose={() => setIsPlaylistModalOpen(false)}
+        onPlayTrack={(track, playlistTracks) => {
+          setCurrentFile(track);
+          play(track, playlistTracks);
+        }}
+      />
+
+      {/* Add Track to Playlist Modal */}
+      <AddToPlaylistModal
+        isOpen={!!fileToAddToPlaylist}
+        onClose={() => setFileToAddToPlaylist(null)}
+        file={fileToAddToPlaylist}
+        currentFolder={currentPath}
+      />
     </div>
   );
 }
