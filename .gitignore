@@ -36,3 +36,5 @@ Thumbs.db
 # Runtime data
 backend/redis-data/
 *.pid
+*.crt
+*.key

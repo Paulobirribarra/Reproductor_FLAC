@@ -13,16 +13,15 @@ export default defineConfig({
       '.ts.net' // Esto permite cualquier dominio de Tailscale
     ],
     hmr: {
-      // Para desarrollo remoto: usar la IP externa para WebSocket del cliente
-      // Pero dentro del container, 0.0.0.0 para binding
-      host: process.env.VITE_HMR_HOST || 'localhost',
-      port: process.env.VITE_HMR_PORT
-        ? parseInt(process.env.VITE_HMR_PORT, 10)
-        : 5174,
-      protocol: process.env.VITE_HMR_PROTOCOL || 'ws',
+      clientPort: 443,
+      protocol: 'wss',
     },
     proxy: {
       '/api': {
+        target: 'http://reproductor-api:3000',
+        changeOrigin: true,
+      },
+      '/uploads': {
         target: 'http://reproductor-api:3000',
         changeOrigin: true,
       },

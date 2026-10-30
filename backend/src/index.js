@@ -30,7 +30,10 @@ const ALLOWED_ORIGINS = [
   'http://100.99.181.34:5173',
   'http://100.99.181.34:5174',
   'http://raspi.flicker-mirach.ts.net:5173',
-  'http://raspi.flicker-mirach.ts.net:5174'
+  'http://raspi.flicker-mirach.ts.net:5174',
+  'https://raspi.flicker-mirach.ts.net',
+  'https://raspi.flicker-mirach.ts.net:5173',
+  'https://raspi.flicker-mirach.ts.net:5174',
 ];
 
 // Si tienes un CORS_ORIGIN específico en el .env, lo añadimos también a la lista
@@ -160,8 +163,12 @@ app.use((req, res) => {
 });
 
 // Start server
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
   console.log(`📂 Upload directory: ${uploadDir}`);
   console.log(`🔒 Allowed CORS Origins: ${ALLOWED_ORIGINS.join(', ')}`);
 });
+
+// Aumentar timeouts de keep-alive para evitar desconexiones por timeout o ping fallido en proxies/Tailscale
+server.keepAliveTimeout = 120000; // 120 segundos
+server.headersTimeout = 125000;   // 125 segundos

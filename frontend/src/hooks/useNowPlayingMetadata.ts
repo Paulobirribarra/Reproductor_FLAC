@@ -38,13 +38,6 @@ export function useNowPlayingMetadata(): NowPlayingMetadata {
             //console.log(`[useNowPlayingMetadata] Cargando: ${currentFile.name}`);
 
             try {
-                // Obtener URL del backend (puerto 3000)
-                const backendUrl = `http://${window.location.hostname}:3000`;
-
-                // Construir URL desde el objeto currentFile
-                // currentFile tiene: { id, name, path, folder, ... }
-                let fileUrl: string;
-
                 // Si tiene path, usarlo; si no, construir desde folder + name
                 let relativePath: string;
                 if (currentFile.path) {
@@ -61,7 +54,8 @@ export function useNowPlayingMetadata(): NowPlayingMetadata {
                     .map((segment) => encodeURIComponent(segment))
                     .join('/');
 
-                fileUrl = `${backendUrl}/uploads/${encodedPath}`;
+                // Usar ruta relativa /uploads para pasar por el proxy de Vite (evita Mixed Content y CORS en HTTPS)
+                const fileUrl = `/uploads/${encodedPath}`;
 
                 //console.log(`[useNowPlayingMetadata] URL: ${fileUrl}`);
 

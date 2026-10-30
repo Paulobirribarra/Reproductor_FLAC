@@ -37,12 +37,25 @@ export const useAudioWorker = (onFileEnded?: () => void) => {
     onFileEndedRef.current = onFileEnded;
   }, [onFileEnded]);
 
+  // Función para reproducir archivo - versión simplificada (sin WASM)
+  const handlePlayFile = (streamUrl: string) => {
+    if (!audioRef.current) return;
+
+    const audio = audioRef.current;
+    audio.src = streamUrl;
+    audio.load();
+
+    setTimeout(() => {
+      audio.play().catch((error) => {
+        console.error('[useAudioWorker] Error playing audio:', error);
+      });
+    }, 100);
+  };
+
   // Inicializar worker y audio
   useEffect(() => {
-    // Solo crear el worker si no existe
     if (!workerRef.current) {
       try {
-        // console.log('[useAudioWorker] Creando worker...');
         workerRef.current = new Worker(
           new URL('../workers/audioWorker.ts', import.meta.url),
           { type: 'module' }
@@ -53,16 +66,13 @@ export const useAudioWorker = (onFileEnded?: () => void) => {
       }
     }
 
-    // Solo crear el audio element si no existe
     if (!audioRef.current) {
       try {
-        // console.log('[useAudioWorker] Creando audio element...');
         const audio = new Audio();
         audio.crossOrigin = 'anonymous';
         audio.style.display = 'none';
         document.body.appendChild(audio);
         audioRef.current = audio;
-        // console.log('[useAudioWorker] Audio element creado y adjuntado al DOM');
       } catch (error) {
         console.error('[useAudioWorker] Error creando audio:', error);
         return;
@@ -72,53 +82,66 @@ export const useAudioWorker = (onFileEnded?: () => void) => {
     const audio = audioRef.current;
     const worker = workerRef.current;
 
-    // Definir handlers
-    const handleWorkerMessage = (event: MessageEvent) => {
-      recordPerformance();
-
-      const { type, payload } = event.data;
-      const now = Date.now();
-
-      if (type === 'STATE_UPDATE') {
-        // Throttle las actualizaciones de estado para evitar re-renders excesivos
+    // Diccionario de acciones del Worker (Elimina los if / else anidados)
+    const workerActions: Record<string, (payload: any) => void> = {
+      'STATE_UPDATE': (payload) => {
+        const now = Date.now();
         if (now - lastUpdateTimeRef.current > UPDATE_THROTTLE_MS) {
           setSessionState(payload);
           lastUpdateTimeRef.current = now;
         }
-      } else if (type === 'PLAYBACK_ENDED') {
+      },
+      'PLAYBACK_ENDED': () => {
         onFileEndedRef.current?.();
-        lastUpdateTimeRef.current = now;
-      } else if (type === 'AUDIO_ERROR') {
+        lastUpdateTimeRef.current = Date.now();
+      },
+      'AUDIO_ERROR': (payload) => {
         console.error('[useAudioWorker] Error de audio:', payload.error);
-      } else if (type === 'PRELOAD_READY') {
+      },
+      'PRELOAD_READY': (payload) => {
         console.log('[useAudioWorker] Precarga lista:', payload.file.name);
-      } else if (type === 'PRELOAD_ERROR') {
+      },
+      'PRELOAD_ERROR': (payload) => {
         console.warn('[useAudioWorker] Error en precarga:', payload.error);
-      } else if (type === 'PLAY_FILE') {
+      },
+      'PLAY_FILE': (payload) => {
         handlePlayFile(payload.streamUrl);
-      } else if (type === 'PAUSE_AUDIO') {
-        if (audio) {
-          audio.pause();
-        }
-      } else if (type === 'RESUME_AUDIO') {
-        if (audio) {
-          audio.play().catch((error) => {
-            console.error('[useAudioWorker] Error reanudando audio:', error);
-          });
-        }
-      } else if (type === 'STOP_AUDIO') {
+      },
+      'PAUSE_AUDIO': () => {
+        audio?.pause();
+      },
+      'RESUME_AUDIO': () => {
+        audio?.play().catch((error) => {
+          console.error('[useAudioWorker] Error reanudando audio:', error);
+        });
+      },
+      'STOP_AUDIO': () => {
         if (audio) {
           audio.pause();
           audio.currentTime = 0;
         }
-      } else if (type === 'SEEK_AUDIO') {
+      },
+      'SEEK_AUDIO': (payload) => {
         if (audio) {
           audio.currentTime = payload.time;
         }
-      } else if (type === 'SET_AUDIO_VOLUME') {
+      },
+      'SET_AUDIO_VOLUME': (payload) => {
         if (audio) {
           audio.volume = payload.volume;
         }
+      }
+    };
+
+    const handleWorkerMessage = (event: MessageEvent) => {
+      recordPerformance();
+      const { type, payload } = event.data;
+      const action = workerActions[type];
+
+      if (action) {
+        action(payload);
+      } else {
+        // console.warn(`[useAudioWorker] Mensaje desconocido: ${type}`);
       }
     };
 
@@ -132,7 +155,6 @@ export const useAudioWorker = (onFileEnded?: () => void) => {
     };
 
     const handleLoadedMetadata = () => {
-      // console.log('[useAudioWorker] Loaded metadata, duration:', audio.duration);
       if (worker && audio.duration) {
         worker.postMessage({
           type: 'UPDATE_AUDIO_DURATION',
@@ -142,7 +164,6 @@ export const useAudioWorker = (onFileEnded?: () => void) => {
     };
 
     const handleCanPlayThrough = () => {
-      //console.log('[useAudioWorker] Can play through');
       if (worker && audio.duration && !Number.isNaN(audio.duration)) {
         worker.postMessage({
           type: 'UPDATE_AUDIO_DURATION',
@@ -153,21 +174,52 @@ export const useAudioWorker = (onFileEnded?: () => void) => {
 
     const handleEnded = () => {
       console.log('[useAudioWorker] Audio ended');
+      // Si el audio terminó prematuramente (más de 3 segundos antes del final real de la duración conocida)
+      if (
+        audio &&
+        audio.duration > 0 &&
+        Number.isFinite(audio.duration) &&
+        audio.currentTime < audio.duration - 3
+      ) {
+        console.warn(`[useAudioWorker] Corte prematuro detectado a los ${audio.currentTime.toFixed(1)}s de ${audio.duration.toFixed(1)}s. Reanudando stream...`);
+        const savedTime = audio.currentTime;
+        audio.load();
+        audio.currentTime = savedTime;
+        audio.play().catch((err) => {
+          console.error('[useAudioWorker] Error al autorecuperar stream:', err);
+        });
+        return;
+      }
+
       if (worker) {
         worker.postMessage({ type: 'AUDIO_ENDED' });
       }
     };
 
-    const handlePlay = () => {
-      //console.log('[useAudioWorker] Audio play event');
-    };
-
+    const handlePlay = () => {};
     const handlePause = () => {
       console.log('[useAudioWorker] Audio pause event');
     };
 
-    const handleError = (e: Event) => {
+    const handleError = () => {
       console.error('[useAudioWorker] Audio error:', audio.error);
+      // Si hubo un fallo de red o ping en mitad de la canción, intentar reanudar
+      if (
+        audio &&
+        audio.currentTime > 0 &&
+        audio.duration > 0 &&
+        audio.currentTime < audio.duration - 2
+      ) {
+        console.warn(`[useAudioWorker] Error de red detectado. Intentando reconexión en ${audio.currentTime.toFixed(1)}s...`);
+        const savedTime = audio.currentTime;
+        setTimeout(() => {
+          audio.load();
+          audio.currentTime = savedTime;
+          audio.play().catch((e) => console.warn('[useAudioWorker] Falló reintento tras error:', e));
+        }, 1000);
+        return;
+      }
+
       if (worker) {
         worker.postMessage({
           type: 'AUDIO_ERROR',
@@ -198,14 +250,11 @@ export const useAudioWorker = (onFileEnded?: () => void) => {
     audio.addEventListener('pause', handlePause);
     audio.addEventListener('error', handleError);
 
-    //console.log('[useAudioWorker] Listeners agregados');
-
-    // Inicializar el worker (esto hará que cree el filePreloadWorker)
+    // Inicializar el worker
     worker.postMessage({ type: 'INITIALIZE' });
 
     // Cleanup - remover listeners
     return () => {
-      //console.log('[useAudioWorker] Removiendo listeners');
       if (handlersRef.current.handleWorkerMessage) {
         worker.removeEventListener('message', handlersRef.current.handleWorkerMessage);
       }
@@ -233,25 +282,6 @@ export const useAudioWorker = (onFileEnded?: () => void) => {
     };
   }, []);
 
-  // Función para reproducir archivo - versión simplificada (sin WASM)
-  const handlePlayFile = (streamUrl: string) => {
-    if (!audioRef.current) return;
-
-    //console.log('[useAudioWorker] Reproduciendo:', streamUrl);
-    const audio = audioRef.current;
-
-    audio.src = streamUrl;
-    //console.log('[useAudioWorker] Audio src set, esperando metadata...');
-    audio.load();
-    //console.log('[useAudioWorker] Audio load() llamado');
-
-    setTimeout(() => {
-      audio.play().catch((error) => {
-        console.error('[useAudioWorker] Error playing audio:', error);
-      });
-    }, 100);
-  };
-
   // Actualizar volumen cuando cambie en sesión
   useEffect(() => {
     if (audioRef.current && sessionState) {
@@ -261,75 +291,43 @@ export const useAudioWorker = (onFileEnded?: () => void) => {
 
   // Métodos públicos
   const play = useCallback((file: FileInfo, playlist: FileInfo[] = []) => {
-    if (workerRef.current) {
-      workerRef.current.postMessage({
-        type: 'PLAY',
-        payload: { file, playlist },
-      });
-    }
+    workerRef.current?.postMessage({ type: 'PLAY', payload: { file, playlist } });
   }, []);
 
   const pause = useCallback(() => {
-    if (workerRef.current) {
-      workerRef.current.postMessage({ type: 'PAUSE' });
-    }
+    workerRef.current?.postMessage({ type: 'PAUSE' });
   }, []);
 
   const resume = useCallback(() => {
-    if (workerRef.current) {
-      workerRef.current.postMessage({ type: 'RESUME' });
-    }
+    workerRef.current?.postMessage({ type: 'RESUME' });
   }, []);
 
   const stop = useCallback(() => {
-    if (workerRef.current) {
-      workerRef.current.postMessage({ type: 'STOP' });
-    }
+    workerRef.current?.postMessage({ type: 'STOP' });
   }, []);
 
   const seek = useCallback((time: number) => {
-    if (workerRef.current) {
-      workerRef.current.postMessage({
-        type: 'SEEK',
-        payload: { time },
-      });
-    }
+    workerRef.current?.postMessage({ type: 'SEEK', payload: { time } });
   }, []);
 
   const setVolume = useCallback((volume: number) => {
-    if (workerRef.current) {
-      workerRef.current.postMessage({
-        type: 'SET_VOLUME',
-        payload: { volume },
-      });
-    }
+    workerRef.current?.postMessage({ type: 'SET_VOLUME', payload: { volume } });
   }, []);
 
   const next = useCallback(() => {
-    if (workerRef.current) {
-      workerRef.current.postMessage({ type: 'NEXT' });
-    }
+    workerRef.current?.postMessage({ type: 'NEXT' });
   }, []);
 
   const prev = useCallback(() => {
-    if (workerRef.current) {
-      workerRef.current.postMessage({ type: 'PREV' });
-    }
+    workerRef.current?.postMessage({ type: 'PREV' });
   }, []);
 
   const setPlaylist = useCallback((playlist: FileInfo[]) => {
-    if (workerRef.current) {
-      workerRef.current.postMessage({
-        type: 'SET_PLAYLIST',
-        payload: { playlist },
-      });
-    }
+    workerRef.current?.postMessage({ type: 'SET_PLAYLIST', payload: { playlist } });
   }, []);
 
   const getState = useCallback(() => {
-    if (workerRef.current) {
-      workerRef.current.postMessage({ type: 'GET_STATE' });
-    }
+    workerRef.current?.postMessage({ type: 'GET_STATE' });
   }, []);
 
   return {

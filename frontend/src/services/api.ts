@@ -62,10 +62,7 @@ export const filesApi = {
 
   getFileStream: (fileName: string, folder?: string) => {
     const params = folder ? `?folder=${encodeURIComponent(folder)}` : '';
-    // ⭐ IMPORTANTE: Usar URL absoluta con import.meta.env.VITE_API_URL
-    // En desarrollo: http://localhost:3000
-    // En producción: https://api.example.com
-    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+    const baseUrl = import.meta.env.VITE_API_URL || '';
     return `${baseUrl}/api/files/${encodeURIComponent(fileName)}/stream${params}`;
   },
 

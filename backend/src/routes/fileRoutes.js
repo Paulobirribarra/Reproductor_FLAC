@@ -62,10 +62,10 @@ export function createFileRoutes(fileService, upload) {
         console.log(`[FileRoutes] Archivo grande detectado (${(req.file.size / 1024 / 1024).toFixed(2)}MB), iniciando split...`);
         try {
           const uploadDir = fileService.uploadDir;
-          const normalizedFolder = folder ? folder.replace(/\\//g, path.sep) : '';
+          const normalizedFolder = folder ? folder.replace(/\//g, path.sep) : '';
           const fullPath = path.join(uploadDir, normalizedFolder, req.file.originalname);
           const outputDir = path.dirname(fullPath);
-          const baseFileName = req.file.originalname.replace(/\\.flac$/i, '');
+          const baseFileName = req.file.originalname.replace(/\.flac$/i, '');
           const chunks = await flacSplitService.splitFlac(fullPath, outputDir, baseFileName);
           console.log('File split:', chunks);
           res.status(201).json({
@@ -180,7 +180,7 @@ export function createFileRoutes(fileService, upload) {
       const rangeHeader = req.headers.range;
       if (rangeHeader) {
         console.log(`[FileRoutes] Range request: ${rangeHeader}`);
-        const rangeMatch = rangeHeader.match(/bytes=(\\d+)?-(\\d+)?/);
+        const rangeMatch = rangeHeader.match(/bytes=(\d+)?-(\d+)?/);
         if (rangeMatch) {
           let start = parseInt(rangeMatch[1], 10) || 0;
           let end = parseInt(rangeMatch[2], 10) || fileSize - 1;
@@ -198,6 +198,8 @@ export function createFileRoutes(fileService, upload) {
             'Content-Range': `bytes ${start}-${end}/${fileSize}`,
             'Accept-Ranges': 'bytes',
             'Cache-Control': 'public, max-age=3600',
+            'Connection': 'keep-alive',
+            'Keep-Alive': 'timeout=120',
           });
           console.log(`[FileRoutes] Sending 206 Partial Content: ${start}-${end}/${fileSize} (${(contentLength / 1024 / 1024).toFixed(2)}MB)`);
           const stream = fileService.createFileStream(fullPath, start, end);
@@ -212,6 +214,8 @@ export function createFileRoutes(fileService, upload) {
         'Content-Length': fileSize,
         'Accept-Ranges': 'bytes',
         'Cache-Control': 'public, max-age=3600',
+        'Connection': 'keep-alive',
+        'Keep-Alive': 'timeout=120',
       });
       console.log(`[FileRoutes] Sending full content: ${(fileSize / 1024 / 1024).toFixed(2)}MB`);
       const stream = fileService.createFileStream(fullPath, 0, fileSize - 1);
@@ -270,13 +274,13 @@ export function createFileRoutes(fileService, upload) {
   router.get('/download-folder', async (req, res) => {
     try {
       const folder = req.query.folder || '';
-      const normalizedFolder = folder ? folder.replace(/\\//g, path.sep) : '';
+      const normalizedFolder = folder ? folder.replace(/\//g, path.sep) : '';
       const folderFullPath = path.join(fileService.uploadDir, normalizedFolder);
       if (!fs.existsSync(folderFullPath)) {
         return res.status(404).json({ success: false, error: 'Carpeta no encontrada' });
       }
       const folderName = folder ? path.basename(folder) : 'Biblioteca_Musical';
-      const safeZipName = `${folderName.replace(/[^\\w\\s.-]/gi, '_')}.zip`;
+      const safeZipName = `${folderName.replace(/[^\w\s.-]/gi, '_')}.zip`;
       res.setHeader('Content-Type', 'application/zip');
       res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(safeZipName)}"`);
 

@@ -11,6 +11,7 @@ import { useFileLoader } from './hooks/useFileLoader';
 import { useAudioWorker } from './hooks/useAudioWorker';
 import { usePreloader } from './hooks/usePreloader';
 import { useLastFmScrobbler } from './hooks/useLastFmScrobbler';
+import { useMediaSession } from './hooks/useMediaSession';
 
 function App() {
   const [isPlayerCollapsed, setIsPlayerCollapsed] = useState(false);
@@ -36,6 +37,17 @@ function App() {
 
   // Sincronización automática de Now Playing y Scrobbles con Last.fm
   useLastFmScrobbler(sessionState);
+
+  // Sincronización con la MediaSession API (controles nativos en pantalla de bloqueo y background)
+  useMediaSession(sessionState, {
+    play: () => resume(),
+    pause: () => pause(),
+    resume: () => resume(),
+    stop: () => stop(),
+    seek: (time) => seek(time),
+    next: () => next(),
+    prev: () => prev(),
+  });
 
   // Precargar siguiente archivo cuando cambia el actual
   useEffect(() => {
