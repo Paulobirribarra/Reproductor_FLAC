@@ -61,17 +61,32 @@ export function useNowPlayingMetadata(): NowPlayingMetadata {
 
                 const extracted = await extractAudioMetadata(fileUrl);
 
+                // Construir URL optimizada del cover del backend (WebP ~2-4KB)
+                const folderParam = currentFile.folder || (relativePath.includes('/') ? relativePath.substring(0, relativePath.lastIndexOf('/')) : '');
+                const backendCoverUrl = folderParam
+                    ? `/api/covers/${folderParam.split('/').map(s => encodeURIComponent(s)).join('/')}`
+                    : undefined;
+
                 setMetadata({
                     ...extracted,
+                    cover: {
+                        url: backendCoverUrl || extracted.cover?.url,
+                        type: backendCoverUrl ? 'image/webp' : extracted.cover?.type
+                    },
                     loading: false,
                     error: null,
                 });
 
-                // Cleanup: guardar referencia al nuevo cover URL
-                if (lastCoverUrlRef.current && lastCoverUrlRef.current !== extracted.cover?.url) {
-                    URL.revokeObjectURL(lastCoverUrlRef.current);
+                // Si usamos el backendCoverUrl, revocar el blob temporal para liberar memoria
+                if (backendCoverUrl && extracted.cover?.url?.startsWith('blob:')) {
+                    URL.revokeObjectURL(extracted.cover.url);
+                } else {
+                    // Cleanup: guardar referencia al nuevo cover URL si es blob
+                    if (lastCoverUrlRef.current && lastCoverUrlRef.current !== extracted.cover?.url) {
+                        URL.revokeObjectURL(lastCoverUrlRef.current);
+                    }
+                    lastCoverUrlRef.current = extracted.cover?.url || null;
                 }
-                lastCoverUrlRef.current = extracted.cover?.url || null;
 
                 //console.log(`[useNowPlayingMetadata] ✓ ${extracted.title || currentFile.name}`);
             } catch (error) {

@@ -151,78 +151,48 @@ export function createFileRoutes(fileService, upload) {
 
   // ---------------------------------------------------
   // Descargar/reproducir archivo con Range Requests (RFC 7233)
+  // Optimizado con res.sendFile: ETags (304), rangos completos y cleanup de streams
   // ---------------------------------------------------
-  router.get('/:fileName/stream', async (req, res) => {
+  router.get('/:fileName/stream', (req, res) => {
     try {
       const { fileName } = req.params;
       const folder = req.query.folder || '';
       const decodedFileName = decodeURIComponent(fileName);
-      console.log('Stream request - fileName:', fileName);
-      console.log('Stream request - decodedFileName:', decodedFileName);
-      console.log('Stream request - folder:', folder);
+      const relativePath = folder ? path.join(folder, decodedFileName) : decodedFileName;
 
-      const filePath = folder ? `${folder}/${decodedFileName}` : decodedFileName;
-      console.log('Stream request - filePath:', filePath);
-
-      const fullPath = await fileService.getFileStream(filePath);
-      console.log('Stream request - fullPath:', fullPath);
-
-      // Determinar Content-Type según la extensión
-      let contentType = 'audio/flac';
-      const lowerFileName = decodedFileName.toLowerCase();
-      if (lowerFileName.endsWith('.mp3')) contentType = 'audio/mpeg';
-      else if (lowerFileName.endsWith('.jpg') || lowerFileName.endsWith('.jpeg')) contentType = 'image/jpeg';
-      else if (lowerFileName.endsWith('.png')) contentType = 'image/png';
-
-      const stats = await fileService.getFileStats(filePath);
-      const fileSize = stats.size;
-
-      const rangeHeader = req.headers.range;
-      if (rangeHeader) {
-        console.log(`[FileRoutes] Range request: ${rangeHeader}`);
-        const rangeMatch = rangeHeader.match(/bytes=(\d+)?-(\d+)?/);
-        if (rangeMatch) {
-          let start = parseInt(rangeMatch[1], 10) || 0;
-          let end = parseInt(rangeMatch[2], 10) || fileSize - 1;
-          if (start >= fileSize || end >= fileSize) {
-            return res.status(416).set('Content-Range', `bytes */${fileSize}`).send('Range Not Satisfiable');
-          }
-          if (start > end) {
-            start = 0;
-            end = fileSize - 1;
-          }
-          const contentLength = end - start + 1;
-          res.status(206).set({
-            'Content-Type': contentType,
-            'Content-Length': contentLength,
-            'Content-Range': `bytes ${start}-${end}/${fileSize}`,
-            'Accept-Ranges': 'bytes',
-            'Cache-Control': 'public, max-age=3600',
-            'Connection': 'keep-alive',
-            'Keep-Alive': 'timeout=120',
-          });
-          console.log(`[FileRoutes] Sending 206 Partial Content: ${start}-${end}/${fileSize} (${(contentLength / 1024 / 1024).toFixed(2)}MB)`);
-          const stream = fileService.createFileStream(fullPath, start, end);
-          stream.pipe(res);
-          return;
-        }
+      // Forzar Content-Type estandarizado para FLAC si corresponde
+      const headers = {};
+      if (decodedFileName.toLowerCase().endsWith('.flac')) {
+        headers['Content-Type'] = 'audio/flac';
       }
 
-      // Sin Range Request o rango inválido → enviar todo el archivo
-      res.set({
-        'Content-Type': contentType,
-        'Content-Length': fileSize,
-        'Accept-Ranges': 'bytes',
-        'Cache-Control': 'public, max-age=3600',
-        'Connection': 'keep-alive',
-        'Keep-Alive': 'timeout=120',
+      res.sendFile(relativePath, {
+        root: fileService.uploadDir,
+        acceptRanges: true,
+        cacheControl: true,
+        maxAge: '1h',
+        etag: true,
+        lastModified: true,
+        headers,
+      }, (err) => {
+        if (err) {
+          // Ignorar desconexiones intencionadas del cliente (cambio de pista, seeking, etc.)
+          if (res.headersSent || err.code === 'ECONNABORTED' || err.code === 'ECONNRESET' || err.code === 'ECANCELED' || err.message?.includes('aborted')) {
+            return;
+          }
+          if (err.status === 404 || err.code === 'ENOENT') {
+            return res.status(404).json({ success: false, error: 'File not found' });
+          }
+          if (err.status === 403) {
+            return res.status(403).json({ success: false, error: 'Access denied' });
+          }
+          console.error('[FileRoutes] Error streaming file:', err);
+          res.status(err.status || 500).json({ success: false, error: err.message });
+        }
       });
-      console.log(`[FileRoutes] Sending full content: ${(fileSize / 1024 / 1024).toFixed(2)}MB`);
-      const stream = fileService.createFileStream(fullPath, 0, fileSize - 1);
-      stream.pipe(res);
     } catch (error) {
-      console.error('Error streaming file:', error);
-      res.status(404).json({ success: false, error: 'File not found' });
+      console.error('[FileRoutes] Exception in stream route:', error);
+      res.status(500).json({ success: false, error: error.message });
     }
   });
 
@@ -276,9 +246,13 @@ export function createFileRoutes(fileService, upload) {
       const folder = req.query.folder || '';
       const normalizedFolder = folder ? folder.replace(/\//g, path.sep) : '';
       const folderFullPath = path.join(fileService.uploadDir, normalizedFolder);
-      if (!fs.existsSync(folderFullPath)) {
+
+      try {
+        await fs.promises.access(folderFullPath);
+      } catch {
         return res.status(404).json({ success: false, error: 'Carpeta no encontrada' });
       }
+
       const folderName = folder ? path.basename(folder) : 'Biblioteca_Musical';
       const safeZipName = `${folderName.replace(/[^\w\s.-]/gi, '_')}.zip`;
       res.setHeader('Content-Type', 'application/zip');
@@ -289,6 +263,14 @@ export function createFileRoutes(fileService, upload) {
         console.error('[FileRoutes] Error en compresión ZIP:', err);
         if (!res.headersSent) res.status(500).json({ success: false, error: err.message });
       });
+
+      // Abortar empaquetado si el cliente interrumpe la descarga
+      req.on('close', () => {
+        if (!res.writableEnded) {
+          archive.abort();
+        }
+      });
+
       archive.pipe(res);
       archive.directory(folderFullPath, false);
       await archive.finalize();

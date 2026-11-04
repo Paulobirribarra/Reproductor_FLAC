@@ -29,8 +29,12 @@ export const useAudioWorker = (onFileEnded?: () => void) => {
   const handlersRef = useRef<{ handleWorkerMessage?: (event: MessageEvent) => void; handleTimeUpdate?: () => void; handleLoadedMetadata?: () => void; handleCanPlayThrough?: () => void; handleEnded?: () => void; handlePlay?: () => void; handlePause?: () => void; handleError?: (e: Event) => void }>({});
   const onFileEndedRef = useRef(onFileEnded);
   const [sessionState, setSessionState] = useState<AudioSession>(initialState);
+  const sessionStateRef = useRef<AudioSession>(initialState);
   const recordPerformance = usePerformanceMonitor('AudioWorker');
   const lastUpdateTimeRef = useRef(0);
+  const retryCountRef = useRef(0);
+  const currentStreamUrlRef = useRef<string | null>(null);
+  const isRecoveringRef = useRef(false);
   const UPDATE_THROTTLE_MS = 200; // Actualizar estado máximo cada 200ms
 
   // Actualizar la ref cuando cambie el callback (sin causar reinicialización)
@@ -38,18 +42,29 @@ export const useAudioWorker = (onFileEnded?: () => void) => {
     onFileEndedRef.current = onFileEnded;
   }, [onFileEnded]);
 
-  // Función para reproducir archivo - versión simplificada (sin WASM)
-  const handlePlayFile = (streamUrl: string) => {
+  // Función para reproducir archivo - versión con auto-reintento
+  const handlePlayFile = (streamUrl: string, resumeTime?: number) => {
     if (!audioRef.current) return;
 
+    currentStreamUrlRef.current = streamUrl;
+    if (resumeTime === undefined) {
+      retryCountRef.current = 0;
+    }
+
     const audio = audioRef.current;
-    audio.src = streamUrl;
+    // Si estamos reanudando tras caída de conexión, agregar un timestamp para romper socket roto
+    const finalUrl = resumeTime !== undefined 
+      ? `${streamUrl}${streamUrl.includes('?') ? '&' : '?'}_r=${Date.now()}`
+      : streamUrl;
+
+    audio.src = finalUrl;
     audio.load();
 
     setTimeout(() => {
+      if (resumeTime !== undefined && resumeTime > 0) {
+        audio.currentTime = resumeTime;
+      }
       audio.play().catch((error) => {
-        // Ignorar AbortError: ocurre naturalmente cuando el usuario salta de canción rápido
-        // o cuando una nueva petición load() interrumpe la reproducción en curso
         if (error.name !== 'AbortError') {
           console.error('[useAudioWorker] Error playing audio:', error);
         }
@@ -89,11 +104,18 @@ export const useAudioWorker = (onFileEnded?: () => void) => {
 
     // Diccionario de acciones del Worker (Elimina los if / else anidados)
     const workerActions: Record<string, (payload: any) => void> = {
-      'STATE_UPDATE': (payload) => {
+      'STATE_UPDATE': (payload: AudioSession) => {
         const now = Date.now();
-        if (now - lastUpdateTimeRef.current > UPDATE_THROTTLE_MS) {
-          setSessionState(payload);
+        const prev = sessionStateRef.current;
+        const stateChanged =
+          prev.isPlaying !== payload.isPlaying ||
+          prev.currentFile?.path !== payload.currentFile?.path ||
+          prev.playlistIndex !== payload.playlistIndex;
+
+        if (stateChanged || now - lastUpdateTimeRef.current > UPDATE_THROTTLE_MS) {
           lastUpdateTimeRef.current = now;
+          sessionStateRef.current = payload;
+          setSessionState(payload);
         }
       },
       'PLAYBACK_ENDED': () => {
@@ -159,7 +181,7 @@ export const useAudioWorker = (onFileEnded?: () => void) => {
     };
 
     const handleTimeUpdate = () => {
-      if (worker && audio.currentTime > 0) {
+      if (worker && audio.currentTime >= 0) {
         worker.postMessage({
           type: 'UPDATE_AUDIO_TIME',
           payload: { currentTime: audio.currentTime }
@@ -192,17 +214,41 @@ export const useAudioWorker = (onFileEnded?: () => void) => {
       }
     };
 
-    const handlePlay = () => {};
+    const handlePlay = () => {
+      if (!sessionStateRef.current.isPlaying) {
+        sessionStateRef.current = { ...sessionStateRef.current, isPlaying: true };
+        setSessionState(sessionStateRef.current);
+      }
+    };
     const handlePause = () => {
-      console.log('[useAudioWorker] Audio pause event');
+      if (sessionStateRef.current.isPlaying) {
+        sessionStateRef.current = { ...sessionStateRef.current, isPlaying: false };
+        setSessionState(sessionStateRef.current);
+      }
     };
 
     const handleError = () => {
       console.error('[useAudioWorker] Audio error:', audio.error);
+      const currentTime = audio.currentTime;
+      const streamUrl = currentStreamUrlRef.current;
+
+      // Si falló por caída de red/túnel (net::ERR_HTTP2_PING_FAILED o similar) y teníamos reproducción activa
+      if (streamUrl && retryCountRef.current < 3 && !isRecoveringRef.current) {
+        retryCountRef.current += 1;
+        isRecoveringRef.current = true;
+        console.warn(`[useAudioWorker] Detectada interrupción de red. Reintentando reproducción (${retryCountRef.current}/3) en segundo: ${currentTime}s`);
+
+        setTimeout(() => {
+          handlePlayFile(streamUrl, currentTime);
+          isRecoveringRef.current = false;
+        }, 1200);
+        return;
+      }
+
       if (worker) {
         worker.postMessage({
           type: 'AUDIO_ERROR',
-          payload: { error: audio.error?.message || 'Unknown error' }
+          payload: { error: audio.error?.message || 'Error de conexión / streaming interrumpido' }
         });
       }
     };
@@ -270,18 +316,35 @@ export const useAudioWorker = (onFileEnded?: () => void) => {
 
   // Métodos públicos
   const play = useCallback((file: FileInfo, playlist: FileInfo[] = []) => {
+    const next = {
+      ...sessionStateRef.current,
+      currentFile: file,
+      isPlaying: true,
+      currentTime: 0,
+    };
+    sessionStateRef.current = next;
+    setSessionState(next);
     workerRef.current?.postMessage({ type: 'PLAY', payload: { file, playlist } });
   }, []);
 
   const pause = useCallback(() => {
+    const next = { ...sessionStateRef.current, isPlaying: false };
+    sessionStateRef.current = next;
+    setSessionState(next);
     workerRef.current?.postMessage({ type: 'PAUSE' });
   }, []);
 
   const resume = useCallback(() => {
+    const next = { ...sessionStateRef.current, isPlaying: true };
+    sessionStateRef.current = next;
+    setSessionState(next);
     workerRef.current?.postMessage({ type: 'RESUME' });
   }, []);
 
   const stop = useCallback(() => {
+    const next = { ...sessionStateRef.current, isPlaying: false, currentTime: 0 };
+    sessionStateRef.current = next;
+    setSessionState(next);
     workerRef.current?.postMessage({ type: 'STOP' });
   }, []);
 

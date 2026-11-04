@@ -21,7 +21,7 @@ export class FileService {
     return path.relative(this.uploadDir, fullPath);
   }
 
-  // ✨ Agrupar archivos chunked en un solo "virtual track"
+  //  Agrupar archivos chunked en un solo "virtual track"
   groupChunkedFiles(fileInfos, folderPath) {
     const chunkMap = new Map(); // "baseFileName" -> [chunks]
     const nonChunkedFiles = [];
@@ -115,7 +115,7 @@ export class FileService {
         const fullPath = path.relative(this.uploadDir, itemPath).replace(/\\/g, '/');
 
         if (item.isDirectory()) {
-          console.log(`[FileService] 📁 Carpeta encontrada: ${item.name} → path: ${fullPath}`);
+         // console.log(`[FileService]  Carpeta encontrada: ${item.name} → path: ${fullPath}`);
           
           // Buscar carátula rápidamente
           let coverImage = undefined;
@@ -142,7 +142,7 @@ export class FileService {
         } else {
           try {
             const stats = await fs.stat(itemPath);
-            console.log(`[FileService]  Archivo encontrado: ${item.name} (${stats.size} bytes) → path: ${fullPath}`);
+            //console.log(`[FileService]  Archivo encontrado: ${item.name} (${stats.size} bytes) → path: ${fullPath}`);
             fileInfos.push({
               type: 'file',
               id: fullPath,
@@ -158,10 +158,10 @@ export class FileService {
         }
       }
 
-      // ✨ AGRUPAR CHUNKS: Detectar archivos divididos y agruparlos
+      //  AGRUPAR CHUNKS: Detectar archivos divididos y agruparlos
       const groupedFiles = this.groupChunkedFiles(fileInfos, folderPath);
 
-      // ✨ Ordenamiento natural numérico (para que '1. ' o '1 - ' vaya antes de '2. ' y no antes de '10. ')
+      //  Ordenamiento natural numérico (para que '1. ' o '1 - ' vaya antes de '2. ' y no antes de '10. ')
       const naturalSort = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
       groupedFiles.sort(naturalSort);
       folders.sort(naturalSort);

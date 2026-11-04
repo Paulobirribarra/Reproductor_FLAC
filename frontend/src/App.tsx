@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { Toaster } from 'react-hot-toast';
 import { TopBar } from './components/Navigation/TopBar';
 
 import { FileUpload } from './components/FileUpload/FileUpload';
@@ -24,7 +25,7 @@ function App() {
   const { files, currentPath, error, loadFiles } = useFileLoader();
   const folders = useFilesStore((state) => state.folders);
   const { sessionState, play, pause, resume, stop, seek, next, prev } = useAudioWorker(() => { });
-  const { setCurrentFile } = usePlayerStore();
+  const { setCurrentFile, setIsPlaying } = usePlayerStore();
   const { preloadNextFile } = usePreloader();
   const currentFile = usePlayerStore((state) => state.currentFile);
 
@@ -38,6 +39,11 @@ function App() {
       }
     }
   }, [sessionState.currentFile, currentFile, setCurrentFile]);
+
+  // Sincronizar isPlaying en usePlayerStore para actualizar TrackItem y visualizadores
+  useEffect(() => {
+    setIsPlaying(sessionState.isPlaying);
+  }, [sessionState.isPlaying, setIsPlaying]);
 
   // Sincronización automática de Now Playing y Scrobbles con Last.fm
   useLastFmScrobbler(sessionState);
@@ -154,34 +160,12 @@ function App() {
             >
               ✕
             </button>
-            {/* Toast container */}
-        <Toaster
-          position="bottom-right"
-          reverseOrder={false}
-          toastOptions={{
-            style: {
-              background: '#1e1e1e',
-              color: '#fff',
-            },
-          }}
-        />
-      </div>
+          </div>
           <FileUpload onUploadComplete={() => {
             loadFiles(currentPath);
             setShowUpload(false);
           }} />
-          {/* Toast container */}
-        <Toaster
-          position="bottom-right"
-          reverseOrder={false}
-          toastOptions={{
-            style: {
-              background: '#1e1e1e',
-              color: '#fff',
-            },
-          }}
-        />
-      </div>
+        </div>
       )}
 
       {showCreateFolder && (
@@ -194,18 +178,7 @@ function App() {
             >
               ✕
             </button>
-            {/* Toast container */}
-        <Toaster
-          position="bottom-right"
-          reverseOrder={false}
-          toastOptions={{
-            style: {
-              background: '#1e1e1e',
-              color: '#fff',
-            },
-          }}
-        />
-      </div>
+          </div>
           <CreateFolder
             onFolderCreated={() => {
               loadFiles(currentPath);
@@ -213,18 +186,7 @@ function App() {
             }}
             currentPath={currentPath}
           />
-          {/* Toast container */}
-        <Toaster
-          position="bottom-right"
-          reverseOrder={false}
-          toastOptions={{
-            style: {
-              background: '#1e1e1e',
-              color: '#fff',
-            },
-          }}
-        />
-      </div>
+        </div>
       )}
 
       {/* Main Content - Lista de archivos y carpetas */}
@@ -274,6 +236,19 @@ function App() {
         onClose={() => setFileToAddToPlaylist(null)}
         file={fileToAddToPlaylist}
         currentFolder={currentPath}
+      />
+
+      {/* Global Toast notifications */}
+      <Toaster
+        position="bottom-right"
+        reverseOrder={false}
+        toastOptions={{
+          style: {
+            background: '#18181b',
+            color: '#fff',
+            border: '1px solid #27272a',
+          },
+        }}
       />
     </div>
   );
