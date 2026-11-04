@@ -95,9 +95,7 @@ export class PlaylistService {
   async deletePlaylist(id) {
     const playlists = await this._readPlaylists();
     const filtered = playlists.filter(p => p.id !== id);
-    if (filtered.length === playlists.length) {
-      throw new Error('Lista de reproducción no encontrada');
-    }
+    // Si ya no existe, retornamos true igual para idempotencia
     await this._writePlaylists(filtered);
     return true;
   }

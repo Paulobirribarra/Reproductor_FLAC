@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "nodemon src/index.js",
+    "dev": "nodemon --config nodemon.json src/index.js",
     "start": "node src/index.js"
   },
   "dependencies": {

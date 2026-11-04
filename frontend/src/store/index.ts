@@ -42,12 +42,15 @@ interface FilesStore {
   error: string | null;
   currentPath: string;
   searchQuery: string;
+  scrollPositions: Record<string, number>;
   setFiles: (files: FileInfo[]) => void;
   setFolders: (folders: any[]) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   setCurrentPath: (path: string) => void;
   setSearchQuery: (query: string) => void;
+  saveScrollPosition: (path: string, position: number) => void;
+  getScrollPosition: (path: string) => number;
   addFile: (file: FileInfo) => void;
   removeFile: (fileId: string) => void;
   updateFile: (fileId: string, updates: Partial<FileInfo>) => void;
@@ -66,12 +69,23 @@ export const useFilesStore = create<FilesStore>((set) => ({
   error: null,
   currentPath: '/',
   searchQuery: '',
+  scrollPositions: {},
   setFiles: (files) => set({ files: naturalSort(files) }),
   setFolders: (folders) => set({ folders: naturalSort(folders) }),
   setLoading: (isLoading) => set({ isLoading }),
   setError: (error) => set({ error }),
   setCurrentPath: (currentPath) => set({ currentPath }),
   setSearchQuery: (searchQuery) => set({ searchQuery }),
+  saveScrollPosition: (path, position) =>
+    set((state) => ({
+      scrollPositions: {
+        ...state.scrollPositions,
+        [path]: position,
+      },
+    })),
+  getScrollPosition: (path) => {
+    return useFilesStore.getState().scrollPositions[path] || 0;
+  },
   addFile: (file) => set((state) => ({ files: naturalSort([...state.files, file]) })),
   removeFile: (fileId) =>
     set((state) => ({

@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import type { FileInfo } from '../types/index';
+import toast from 'react-hot-toast';
 import { usePerformanceMonitor } from './usePerformanceMonitor';
 
 interface AudioSession {
@@ -47,7 +48,11 @@ export const useAudioWorker = (onFileEnded?: () => void) => {
 
     setTimeout(() => {
       audio.play().catch((error) => {
-        console.error('[useAudioWorker] Error playing audio:', error);
+        // Ignorar AbortError: ocurre naturalmente cuando el usuario salta de canción rápido
+        // o cuando una nueva petición load() interrumpe la reproducción en curso
+        if (error.name !== 'AbortError') {
+          console.error('[useAudioWorker] Error playing audio:', error);
+        }
       });
     }, 100);
   };
@@ -112,7 +117,9 @@ export const useAudioWorker = (onFileEnded?: () => void) => {
       },
       'RESUME_AUDIO': () => {
         audio?.play().catch((error) => {
-          console.error('[useAudioWorker] Error reanudando audio:', error);
+          if (error.name !== 'AbortError') {
+            console.error('[useAudioWorker] Error reanudando audio:', error);
+          }
         });
       },
       'STOP_AUDIO': () => {
@@ -126,11 +133,17 @@ export const useAudioWorker = (onFileEnded?: () => void) => {
           audio.currentTime = payload.time;
         }
       },
+      'PLAYBACK_ERROR': (payload) => {
+        console.error('[useAudioWorker] Playback error:', payload.error);
+        toast.error(`Error de reproducción: ${payload.error}`);
+        // Reset playback state to avoid stuck UI
+        setSessionState((s) => ({ ...s, isPlaying: false }));
+      },
       'SET_AUDIO_VOLUME': (payload) => {
         if (audio) {
           audio.volume = payload.volume;
         }
-      }
+      },
     };
 
     const handleWorkerMessage = (event: MessageEvent) => {
@@ -174,23 +187,6 @@ export const useAudioWorker = (onFileEnded?: () => void) => {
 
     const handleEnded = () => {
       console.log('[useAudioWorker] Audio ended');
-      // Si el audio terminó prematuramente (más de 3 segundos antes del final real de la duración conocida)
-      if (
-        audio &&
-        audio.duration > 0 &&
-        Number.isFinite(audio.duration) &&
-        audio.currentTime < audio.duration - 3
-      ) {
-        console.warn(`[useAudioWorker] Corte prematuro detectado a los ${audio.currentTime.toFixed(1)}s de ${audio.duration.toFixed(1)}s. Reanudando stream...`);
-        const savedTime = audio.currentTime;
-        audio.load();
-        audio.currentTime = savedTime;
-        audio.play().catch((err) => {
-          console.error('[useAudioWorker] Error al autorecuperar stream:', err);
-        });
-        return;
-      }
-
       if (worker) {
         worker.postMessage({ type: 'AUDIO_ENDED' });
       }
@@ -203,23 +199,6 @@ export const useAudioWorker = (onFileEnded?: () => void) => {
 
     const handleError = () => {
       console.error('[useAudioWorker] Audio error:', audio.error);
-      // Si hubo un fallo de red o ping en mitad de la canción, intentar reanudar
-      if (
-        audio &&
-        audio.currentTime > 0 &&
-        audio.duration > 0 &&
-        audio.currentTime < audio.duration - 2
-      ) {
-        console.warn(`[useAudioWorker] Error de red detectado. Intentando reconexión en ${audio.currentTime.toFixed(1)}s...`);
-        const savedTime = audio.currentTime;
-        setTimeout(() => {
-          audio.load();
-          audio.currentTime = savedTime;
-          audio.play().catch((e) => console.warn('[useAudioWorker] Falló reintento tras error:', e));
-        }, 1000);
-        return;
-      }
-
       if (worker) {
         worker.postMessage({
           type: 'AUDIO_ERROR',

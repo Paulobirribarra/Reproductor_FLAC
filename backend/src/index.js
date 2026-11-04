@@ -11,9 +11,11 @@ import { createMetadataRoutes } from './routes/metadataRoutes.js';
 import { createPreloadRoutes } from './routes/preloadRoutes.js';
 import { createLastFmRoutes } from './routes/lastfmRoutes.js';
 import { createPlaylistRoutes } from './routes/playlistRoutes.js';
+import { createCoverRoutes } from './routes/coverRoutes.js';
 import { getRedisService } from './services/redisService.js';
 import { LastFmService } from './services/lastfmService.js';
 import { PlaylistService } from './services/playlistService.js';
+import { getCoverService } from './services/coverService.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Directorio de uploads
@@ -52,6 +54,7 @@ const fileService = new FileService(uploadDir);
 const metadataService = createMetadataService(uploadDir);
 const lastFmService = new LastFmService(redisService);
 const playlistService = new PlaylistService(path.join(__dirname, '../data'));
+const coverService = getCoverService(uploadDir);
 
 // Configurar multer
 const storage = multer.diskStorage({
@@ -124,8 +127,13 @@ app.use(cors({
 app.use(express.json({ limit: '200mb' }));
 app.use(express.urlencoded({ extended: true, limit: '200mb' }));
 
-// Servir archivos estáticos desde la carpeta uploads
-app.use('/uploads', express.static(uploadDir));
+// Servir archivos estáticos desde la carpeta uploads con caché HTTP eficiente para carátulas
+app.use('/uploads', express.static(uploadDir, {
+  maxAge: '7d',
+  immutable: true,
+  etag: true,
+  lastModified: true
+}));
 
 // Middleware para procesar binarios en /api/preload/cache/binary
 app.use('/api/preload/cache/binary', express.raw({ type: 'application/octet-stream', limit: '500mb' }));
@@ -150,6 +158,9 @@ app.use('/api/lastfm', createLastFmRoutes(lastFmService));
 // Rutas de Playlists
 app.use('/api/playlists', createPlaylistRoutes(playlistService));
 
+// Rutas de Carátulas optimizadas (WebP 150x150 en DB 2)
+app.use('/api/covers', createCoverRoutes(coverService));
+
 // Error handler
 app.use((err, req, res, next) => {
   console.error('Error caught:', err.message);
@@ -165,6 +176,8 @@ app.use((req, res) => {
 // Start server
 const server = app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
+  // Disable request timeout to prevent 408 errors on large streaming files
+  server.timeout = 0; // No timeout on request processing
   console.log(`📂 Upload directory: ${uploadDir}`);
   console.log(`🔒 Allowed CORS Origins: ${ALLOWED_ORIGINS.join(', ')}`);
 });
@@ -172,3 +185,4 @@ const server = app.listen(PORT, () => {
 // Aumentar timeouts de keep-alive para evitar desconexiones por timeout o ping fallido en proxies/Tailscale
 server.keepAliveTimeout = 120000; // 120 segundos
 server.headersTimeout = 125000;   // 125 segundos
+server.requestTimeout = 0;        // Desactiva el request timeout de Node.js HTTP (evita 408 Request Timeout en streaming)

@@ -105,6 +105,11 @@ export class FileService {
       const folders = [];
 
       for (const item of items) {
+        // Ignorar archivos y carpetas ocultas (que comienzan con punto, como .covers_cache, .git, etc.)
+        if (item.name.startsWith('.')) {
+          continue;
+        }
+
         const itemPath = path.join(folderPath, item.name);
         // Normalizar con / para consistencia en JSON
         const fullPath = path.relative(this.uploadDir, itemPath).replace(/\\/g, '/');
@@ -124,11 +129,15 @@ export class FileService {
             console.error(`Error buscando carátula en ${item.name}:`, e);
           }
 
+          // Generar URL para thumbnail optimizado WebP
+          const thumbUrl = `/api/covers/${fullPath.split('/').map(segment => encodeURIComponent(segment)).join('/')}`;
+
           folders.push({
             type: 'folder',
             name: item.name,
             path: fullPath,
-            coverImage: coverImage
+            coverImage: coverImage,
+            thumbUrl: thumbUrl
           });
         } else {
           try {

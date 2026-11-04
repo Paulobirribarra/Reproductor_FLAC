@@ -56,16 +56,7 @@ function buildStreamUrl(file: AudioFile): string {
 // ==================== HANDLERS DE ACCIÓN ====================
 
 const handleInitialize = () => {
-  if (!preloadWorker) {
-    try {
-      preloadWorker = new Worker(
-        new URL('../workers/filePreloadWorker.ts', import.meta.url),
-        { type: 'module' }
-      );
-    } catch (error) {
-      console.warn('[audioWorker] No se pudo crear filePreloadWorker:', error);
-    }
-  }
+  // PreloadWorker desactivado para evitar saturación de red innecesaria
   broadcastState();
 };
 
@@ -176,25 +167,8 @@ const handleAudioEnded = () => {
 };
 
 const preloadNextFile = () => {
-  if (!preloadWorker || audioSession.playlist.length === 0) return;
-
-  const nextIndex = audioSession.playlistIndex + 1;
-  if (nextIndex >= audioSession.playlist.length) return;
-
-  const nextFile = audioSession.playlist[nextIndex];
-  if (!nextFile) return;
-
-  try {
-    preloadWorker.postMessage({
-      type: 'PRELOAD_FILE',
-      payload: {
-        name: nextFile.name,
-        path: nextFile.path,
-      },
-    });
-  } catch (error) {
-    // Silenciar errores de precarga
-  }
+  // Deshabilitado: el streaming directo nativo con Range Requests (RFC 7233)
+  // es instantáneo y evita saturar el canal de red/Tailscale con descargas completas.
 };
 
 // ==================== DICCIONARIO DE COMANDOS ====================
@@ -220,6 +194,11 @@ const workerActions: Record<string, (payload: any) => void> = {
   },
   'AUDIO_ENDED': () => handleAudioEnded(),
   'GET_STATE': () => broadcastState(),
+  'AUDIO_ERROR': (payload) => {
+    console.warn('[audioWorker] Received AUDIO_ERROR:', payload);
+    // Forward a generic error message to UI so it can display a toast
+    self.postMessage({ type: 'PLAYBACK_ERROR', payload: { error: payload.error } });
+  },
 };
 
 // ==================== EVENT LISTENER PRINCIPAL ====================

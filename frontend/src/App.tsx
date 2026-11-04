@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActionBar } from './components/ActionBar/ActionBar';
+import { TopBar } from './components/Navigation/TopBar';
+
+import { FileUpload } from './components/FileUpload/FileUpload';
+import { CreateFolder } from './components/CreateFolder/CreateFolder';
 import { MainContent } from './components/MainContent/MainContent';
-import { PlayerFooter } from './components/PlayerFooter/PlayerFooter';
-import { NowPlayingMetadata } from './components/NowPlayingMetadata';
+import { PlayerDock } from './components/Player/PlayerDock';
 import { AlbumPanel } from './components/AlbumPanel/AlbumPanel';
 import { PlaylistModal } from './components/Playlist/PlaylistModal';
 import { AddToPlaylistModal } from './components/Playlist/AddToPlaylistModal';
@@ -16,6 +18,8 @@ import { useMediaSession } from './hooks/useMediaSession';
 function App() {
   const [isPlayerCollapsed, setIsPlayerCollapsed] = useState(false);
   const [isPlaylistModalOpen, setIsPlaylistModalOpen] = useState(false);
+  const [showUpload, setShowUpload] = useState(false);
+  const [showCreateFolder, setShowCreateFolder] = useState(false);
   const [fileToAddToPlaylist, setFileToAddToPlaylist] = useState<any>(null);
   const { files, currentPath, error, loadFiles } = useFileLoader();
   const folders = useFilesStore((state) => state.folders);
@@ -49,12 +53,12 @@ function App() {
     prev: () => prev(),
   });
 
-  // Precargar siguiente archivo cuando cambia el actual
-  useEffect(() => {
-    if (currentFile && files.length > 0) {
-      preloadNextFile(files, currentFile, currentPath);
-    }
-  }, [currentFile, files, currentPath, preloadNextFile]);
+  // Precargar siguiente archivo desactivado para evitar saturación de red innecesaria
+  // useEffect(() => {
+  //   if (currentFile && files.length > 0) {
+  //     preloadNextFile(files, currentFile, currentPath);
+  //   }
+  // }, [currentFile, files, currentPath, preloadNextFile]);
 
   const handlePlay = (file: any) => {
     // Filtrar la playlist para que contenga ÚNICAMENTE archivos de audio (evitar .jpg, .cue, etc.)
@@ -126,22 +130,102 @@ function App() {
   };
 
   return (
-    <div className="w-full h-screen flex flex-col bg-zinc-950 text-zinc-100">
-      {/* ActionBar */}
-      <ActionBar
-        onFolderCreated={() => loadFiles(currentPath)}
-        onUploadComplete={() => loadFiles(currentPath)}
-        onGoHome={handleGoHome}
-        onGoBack={handleGoBack}
-        onOpenPlaylists={() => setIsPlaylistModalOpen(true)}
+    <div className="w-full h-screen flex flex-col bg-zinc-950 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(39,39,42,0.6),rgba(9,9,11,1))] text-zinc-100 overflow-hidden relative">
+      {/* TopBar unificada (Navegación + Breadcrumb interactivo + Acciones) */}
+      <TopBar
         currentPath={currentPath}
         canGoBack={!!currentPath}
+        onGoBack={handleGoBack}
+        onGoHome={handleGoHome}
+        onNavigateToPath={(path) => loadFiles(path)}
+        onOpenUpload={() => setShowUpload((prev) => !prev)}
+        onOpenCreateFolder={() => setShowCreateFolder((prev) => !prev)}
+        onOpenPlaylists={() => setIsPlaylistModalOpen(true)}
       />
 
-      {/* Breadcrumb simple */}
-      <div className="bg-zinc-800 text-zinc-300 px-6 py-2 text-sm flex-shrink-0 border-b border-zinc-700">
-        {currentPath ? <span> {currentPath}</span> : <span className="text-zinc-500">Raíz</span>}
+      {/* Paneles desplegables de subida y crear carpeta */}
+      {showUpload && (
+        <div className="border-b border-zinc-800 bg-zinc-900/90 backdrop-blur-md px-6 py-4 animate-slideDown">
+          <div className="flex justify-between items-center mb-3">
+            <p className="text-sm font-semibold text-white">Subir archivos FLAC</p>
+            <button
+              onClick={() => setShowUpload(false)}
+              className="text-zinc-400 hover:text-white transition-colors"
+            >
+              ✕
+            </button>
+            {/* Toast container */}
+        <Toaster
+          position="bottom-right"
+          reverseOrder={false}
+          toastOptions={{
+            style: {
+              background: '#1e1e1e',
+              color: '#fff',
+            },
+          }}
+        />
       </div>
+          <FileUpload onUploadComplete={() => {
+            loadFiles(currentPath);
+            setShowUpload(false);
+          }} />
+          {/* Toast container */}
+        <Toaster
+          position="bottom-right"
+          reverseOrder={false}
+          toastOptions={{
+            style: {
+              background: '#1e1e1e',
+              color: '#fff',
+            },
+          }}
+        />
+      </div>
+      )}
+
+      {showCreateFolder && (
+        <div className="border-b border-zinc-800 bg-zinc-900/90 backdrop-blur-md px-6 py-4 animate-slideDown">
+          <div className="flex justify-between items-center mb-3">
+            <p className="text-sm font-semibold text-white">Crear nueva carpeta</p>
+            <button
+              onClick={() => setShowCreateFolder(false)}
+              className="text-zinc-400 hover:text-white transition-colors"
+            >
+              ✕
+            </button>
+            {/* Toast container */}
+        <Toaster
+          position="bottom-right"
+          reverseOrder={false}
+          toastOptions={{
+            style: {
+              background: '#1e1e1e',
+              color: '#fff',
+            },
+          }}
+        />
+      </div>
+          <CreateFolder
+            onFolderCreated={() => {
+              loadFiles(currentPath);
+              setShowCreateFolder(false);
+            }}
+            currentPath={currentPath}
+          />
+          {/* Toast container */}
+        <Toaster
+          position="bottom-right"
+          reverseOrder={false}
+          toastOptions={{
+            style: {
+              background: '#1e1e1e',
+              color: '#fff',
+            },
+          }}
+        />
+      </div>
+      )}
 
       {/* Main Content - Lista de archivos y carpetas */}
       <MainContent
@@ -154,34 +238,22 @@ function App() {
         error={error}
       />
 
-      {/* Footer - Reproductor y Metadatos Agrupados */}
-      <div className="flex flex-col flex-shrink-0 z-40">
-        <PlayerFooter
-          sessionState={sessionState}
-          files={files}
-          onPlayPause={() => {
-            if (sessionState.isPlaying) {
-              pause();
-            } else if (sessionState.currentFile) {
-              resume();
-            }
-          }}
-          onStop={stop}
-          onSeek={seek}
-          onNext={next}
-          onPrev={prev}
-          isCollapsed={isPlayerCollapsed}
-          onToggleCollapse={() => setIsPlayerCollapsed(!isPlayerCollapsed)}
-        />
-
-        {/* Now Playing Metadata Info */}
-        {!isPlayerCollapsed && (
-          <NowPlayingMetadata
-            onNavigateFolder={handleFolderClick}
-            fallbackDuration={sessionState.duration}
-          />
-        )}
-      </div>
+      {/* Reproductor Flotante Moderno estilo Dock */}
+      <PlayerDock
+        sessionState={sessionState}
+        onPlayPause={() => {
+          if (sessionState.isPlaying) {
+            pause();
+          } else if (sessionState.currentFile) {
+            resume();
+          }
+        }}
+        onStop={stop}
+        onSeek={seek}
+        onNext={next}
+        onPrev={prev}
+        onNavigateFolder={handleFolderClick}
+      />
 
       {/* Album Details Panel */}
       <AlbumPanel />
